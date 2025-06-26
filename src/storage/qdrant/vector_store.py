@@ -1,240 +1,388 @@
 """
-Qdrant vector storage wrapper for 3-tier memory system.
+Qdrant vector store for high-performance similarity search.
 
-Reference: IMPLEMENTATION_GUIDE.md - Day 4: Storage Layer
-Manages L0 (concepts), L1 (contexts), L2 (episodes) collections.
+This module handles all vector operations including storage, retrieval,
+and similarity search across the 3-tier hierarchy (L0/L1/L2).
 """
 
-from typing import List, Dict, Optional, Tuple
+from abc import ABC, abstractmethod
+from typing import Dict, List, Optional, Tuple, Union
+from qdrant_client import AsyncQdrantClient
+from qdrant_client.http import models
 import numpy as np
-from qdrant_client import QdrantClient
-from qdrant_client.models import (
-    Distance, VectorParams, PointStruct,
-    Filter, FieldCondition, Range, SearchRequest,
-    HnswConfigDiff, OptimizersConfigDiff
-)
-import logging
-from dataclasses import dataclass
+import asyncio
+from datetime import datetime
 
-logger = logging.getLogger(__name__)
+from ...models.memory import Memory, Vector, ActivatedMemory
 
 
-@dataclass
-class SearchConfig:
-    """Configuration for vector search."""
-    limit: int = 10
-    score_threshold: float = 0.7
-    with_payload: bool = True
-    with_vectors: bool = False
-
-
-class QdrantVectorStore:
+class VectorStore(ABC):
     """
-    Manages vector storage across 3 memory tiers.
+    @TODO: Implement abstract vector store interface.
     
-    TODO Day 4:
-    - [ ] Initialize Qdrant client
-    - [ ] Create 3 collections with optimized HNSW
-    - [ ] Implement CRUD operations
-    - [ ] Add batch operations
-    - [ ] Implement search with filters
-    - [ ] Add connection pooling
+    AGENTIC EMPOWERMENT: This interface defines how the system performs
+    similarity search and vector operations. Your design enables
+    swapping vector databases if needed.
+    
+    Required methods:
+    - store_vector: Store memory vector
+    - search_similar: Find similar memories
+    - batch_search: Multiple similarity searches
+    - delete_vector: Remove memory vector
+    - get_collection_stats: Analytics
     """
     
-    # Collection names
-    L0_COLLECTION = "cognitive_concepts"    # Highest abstraction
-    L1_COLLECTION = "cognitive_contexts"    # Semantic memories
-    L2_COLLECTION = "cognitive_episodes"    # Raw episodic memories
+    @abstractmethod
+    async def store_vector(
+        self, 
+        memory_id: str, 
+        vector: Vector, 
+        collection: str,
+        metadata: Dict = None
+    ) -> bool:
+        """@TODO: Store vector with metadata"""
+        pass
     
-    # HNSW parameters per tier
-    HNSW_CONFIGS = {
-        L0_COLLECTION: {"m": 32, "ef_construct": 256},  # High quality for concepts
-        L1_COLLECTION: {"m": 16, "ef_construct": 128},  # Balanced
-        L2_COLLECTION: {"m": 16, "ef_construct": 100},  # Fast for episodes
-    }
+    @abstractmethod
+    async def search_similar(
+        self, 
+        query_vector: Vector, 
+        collection: str,
+        limit: int = 10,
+        threshold: float = 0.7
+    ) -> List[Tuple[str, float]]:
+        """@TODO: Find similar vectors"""
+        pass
+
+
+class QdrantVectorStore(VectorStore):
+    """
+    @TODO: Implement Qdrant-specific vector operations.
+    
+    AGENTIC EMPOWERMENT: This is the core of similarity search.
+    Your implementation determines how quickly and accurately
+    the system finds related memories.
+    
+    Key responsibilities:
+    - 3-tier collection management (L0/L1/L2)
+    - Vector indexing and search
+    - Metadata filtering
+    - Performance optimization
+    - Connection management
+    """
     
     def __init__(self, host: str = "localhost", port: int = 6333):
         """
-        Initialize Qdrant vector store.
+        @TODO: Initialize Qdrant client and collections.
         
-        Args:
-            host: Qdrant server host
-            port: Qdrant server port
+        AGENTIC EMPOWERMENT: Set up the vector database connection
+        and ensure all collections exist with proper configuration.
         """
-        self.host = host
-        self.port = port
-        self.client: Optional[QdrantClient] = None
-        self.vector_size = 400  # 384D semantic + 16D dimensions
-        
-        # TODO Day 4: Initialize client
-        self._connect()
-    
-    def _connect(self) -> None:
-        """
-        Connect to Qdrant server.
-        
-        TODO Day 4:
-        - [ ] Create QdrantClient instance
-        - [ ] Test connection
-        - [ ] Log connection status
-        """
-        # TODO: Implementation
+        # TODO: Initialize async client
+        self.client: Optional[AsyncQdrantClient] = None
+        self.collections = {
+            "l0": "cognitive_concepts",    # High-level concepts
+            "l1": "cognitive_contexts",    # Contextual information  
+            "l2": "cognitive_episodes"     # Specific episodes
+        }
+        # TODO: Initialize client and collections
         pass
     
     async def initialize_collections(self) -> None:
         """
-        Create all 3 collections with optimized settings.
+        @TODO: Create Qdrant collections with proper configuration.
         
-        TODO Day 4:
-        - [ ] Create L0, L1, L2 collections
-        - [ ] Set HNSW parameters per tier
-        - [ ] Configure on-disk storage for L2
-        - [ ] Add collection metadata
+        AGENTIC EMPOWERMENT: Each collection tier serves different
+        purposes in the cognitive hierarchy. Configure them for
+        optimal performance:
+        
+        L0 (Concepts): High-level abstractions, fewer vectors
+        L1 (Contexts): Medium granularity, moderate vectors
+        L2 (Episodes): Specific details, many vectors
         """
-        # TODO: Implementation
+        # TODO: Create collections with appropriate settings
+        # Consider: vector size (400D), distance metric, index params
         pass
     
     async def store_vector(
         self, 
-        collection_name: str,
-        vector_id: str,
-        vector: np.ndarray,
-        payload: Dict
+        memory_id: str, 
+        vector: Vector, 
+        collection: str,
+        metadata: Dict = None
     ) -> bool:
         """
-        Store a single vector with metadata.
+        @TODO: Store vector in specified collection.
         
-        Args:
-            collection_name: Target collection (L0/L1/L2)
-            vector_id: Unique identifier
-            vector: 400D numpy array
-            payload: Metadata dictionary
-            
-        Returns:
-            Success status
-            
-        TODO Day 4:
-        - [ ] Validate vector shape (400,)
-        - [ ] Create PointStruct
-        - [ ] Upsert to collection
-        - [ ] Handle errors
+        AGENTIC EMPOWERMENT: This stores every memory vector for
+        similarity search. Ensure proper error handling and
+        metadata management.
         """
-        # TODO: Implementation
-        return False
+        # TODO: Convert Vector to Qdrant format and store
+        pass
     
-    async def store_batch(
-        self,
-        collection_name: str,
-        vectors: List[Tuple[str, np.ndarray, Dict]]
-    ) -> int:
+    async def search_similar(
+        self, 
+        query_vector: Vector, 
+        collection: str,
+        limit: int = 10,
+        threshold: float = 0.7,
+        metadata_filter: Dict = None
+    ) -> List[Tuple[str, float]]:
         """
-        Store multiple vectors efficiently.
+        @TODO: Implement similarity search.
         
-        Args:
-            collection_name: Target collection
-            vectors: List of (id, vector, payload) tuples
-            
-        Returns:
-            Number of vectors stored
-            
-        TODO Day 4:
-        - [ ] Validate all vectors
-        - [ ] Create PointStruct batch
-        - [ ] Use batch upsert
-        - [ ] Return success count
+        AGENTIC EMPOWERMENT: This is called by activation spreading
+        and bridge discovery. Fast, accurate results are critical
+        for real-time cognitive processing.
         """
-        # TODO: Implementation
-        return 0
+        # TODO: Perform vector search with filtering
+        pass
     
-    async def search(
-        self,
-        collection_name: str,
-        query_vector: np.ndarray,
-        config: Optional[SearchConfig] = None,
-        filter_dict: Optional[Dict] = None
-    ) -> List[Dict]:
+    async def batch_search(
+        self, 
+        query_vectors: List[Vector], 
+        collection: str,
+        limit: int = 10
+    ) -> List[List[Tuple[str, float]]]:
         """
-        Search for similar vectors.
+        @TODO: Implement batch similarity search.
         
-        Args:
-            collection_name: Collection to search
-            query_vector: 400D query vector
-            config: Search configuration
-            filter_dict: Optional filters
-            
-        Returns:
-            List of results with id, score, payload
-            
-        TODO Day 4:
-        - [ ] Validate query vector
-        - [ ] Build filter conditions
-        - [ ] Execute search
-        - [ ] Format results
+        AGENTIC EMPOWERMENT: Used for efficient multi-vector
+        searches during activation spreading. Optimize for
+        throughput.
         """
-        # TODO: Implementation
-        return []
+        # TODO: Batch vector search implementation
+        pass
     
-    async def get_vector(
-        self,
-        collection_name: str,
-        vector_id: str
-    ) -> Optional[Dict]:
+    async def hybrid_search(
+        self, 
+        semantic_vector: np.ndarray,
+        cognitive_vector: np.ndarray,
+        collection: str,
+        semantic_weight: float = 0.8,
+        cognitive_weight: float = 0.2,
+        limit: int = 10
+    ) -> List[Tuple[str, float]]:
         """
-        Retrieve a vector by ID.
+        @TODO: Implement hybrid semantic + cognitive search.
         
-        TODO Day 4:
-        - [ ] Fetch point by ID
-        - [ ] Return vector and payload
-        - [ ] Handle not found
+        AGENTIC EMPOWERMENT: This enables sophisticated queries
+        that consider both semantic similarity and cognitive
+        dimensions. Balance the weights intelligently.
         """
-        # TODO: Implementation
-        return None
+        # TODO: Weighted combination search
+        pass
     
-    async def delete_vector(
-        self,
-        collection_name: str,
-        vector_id: str
+    async def get_vector(self, memory_id: str, collection: str) -> Optional[Vector]:
+        """
+        @TODO: Retrieve stored vector by ID.
+        
+        AGENTIC EMPOWERMENT: Used for vector arithmetic and
+        similarity calculations. Ensure efficient retrieval.
+        """
+        # TODO: Vector retrieval implementation
+        pass
+    
+    async def delete_vector(self, memory_id: str, collection: str) -> bool:
+        """
+        @TODO: Remove vector from collection.
+        
+        AGENTIC EMPOWERMENT: Used during memory cleanup and
+        consolidation. Ensure proper cleanup.
+        """
+        # TODO: Vector deletion implementation
+        pass
+    
+    async def update_vector(
+        self, 
+        memory_id: str, 
+        vector: Vector, 
+        collection: str
     ) -> bool:
         """
-        Delete a vector by ID.
+        @TODO: Update existing vector.
         
-        TODO Day 4:
-        - [ ] Delete point
-        - [ ] Return success status
+        AGENTIC EMPOWERMENT: Used when memory vectors change
+        due to decay or boosting. Maintain search index integrity.
         """
-        # TODO: Implementation
-        return False
+        # TODO: Vector update implementation
+        pass
     
-    async def get_collection_info(self, collection_name: str) -> Dict:
+    async def move_vector(
+        self, 
+        memory_id: str, 
+        from_collection: str, 
+        to_collection: str
+    ) -> bool:
         """
-        Get collection statistics.
+        @TODO: Move vector between collections.
         
-        TODO Day 4:
-        - [ ] Fetch collection info
-        - [ ] Return vector count, config
+        AGENTIC EMPOWERMENT: Used during consolidation when
+        episodic memories (L2) become semantic memories (L0/L1).
+        Ensure atomicity.
         """
-        # TODO: Implementation
-        return {}
-    
-    async def optimize_collection(self, collection_name: str) -> None:
-        """
-        Optimize collection for search performance.
-        
-        TODO Day 4:
-        - [ ] Trigger index optimization
-        - [ ] Log optimization status
-        """
-        # TODO: Implementation
+        # TODO: Cross-collection vector movement
         pass
 
 
-# Singleton instance
-_vector_store: Optional[QdrantVectorStore] = None
+class HierarchicalVectorManager:
+    """
+    @TODO: Manage vectors across the 3-tier hierarchy.
+    
+    AGENTIC EMPOWERMENT: This orchestrates vector operations
+    across L0/L1/L2 collections. Your design determines how
+    memories flow through the cognitive hierarchy.
+    
+    Responsibilities:
+    - Route vectors to appropriate tiers
+    - Cross-tier similarity search
+    - Hierarchical consolidation
+    - Performance optimization
+    """
+    
+    def __init__(self, vector_store: QdrantVectorStore):
+        # TODO: Initialize with vector store
+        pass
+    
+    async def store_memory_vector(self, memory: Memory) -> None:
+        """
+        @TODO: Store vector in appropriate tier based on memory type.
+        
+        AGENTIC EMPOWERMENT: Route memories to the right level:
+        - L0: Semantic memories, high-level concepts
+        - L1: Contextual memories, themes
+        - L2: Episodic memories, specific events
+        """
+        # TODO: Tier routing logic
+        pass
+    
+    async def hierarchical_search(
+        self, 
+        query_vector: Vector,
+        search_strategy: str = "bottom_up",
+        max_results: int = 50
+    ) -> List[ActivatedMemory]:
+        """
+        @TODO: Search across all tiers with intelligent strategy.
+        
+        AGENTIC EMPOWERMENT: Different search strategies for
+        different query types:
+        - bottom_up: Start with specific (L2), expand to general
+        - top_down: Start with concepts (L0), drill to specifics
+        - parallel: Search all tiers simultaneously
+        """
+        # TODO: Multi-tier search implementation
+        pass
+    
+    async def promote_vector(
+        self, 
+        memory_id: str, 
+        from_tier: str, 
+        to_tier: str
+    ) -> bool:
+        """
+        @TODO: Promote vector during consolidation.
+        
+        AGENTIC EMPOWERMENT: Move memories up the hierarchy
+        as they become more abstracted and important.
+        """
+        # TODO: Vector promotion logic
+        pass
 
 
-def get_vector_store() -> QdrantVectorStore:
-    """Get the singleton vector store instance."""
-    global _vector_store
-    if _vector_store is None:
-        _vector_store = QdrantVectorStore()
-    return _vector_store
+class VectorAnalytics:
+    """
+    @TODO: Analytics and insights for vector operations.
+    
+    AGENTIC EMPOWERMENT: Understand system performance and
+    vector distribution. Enable optimization and monitoring.
+    """
+    
+    def __init__(self, vector_store: QdrantVectorStore):
+        # TODO: Initialize analytics
+        pass
+    
+    async def get_collection_stats(self, collection: str) -> Dict:
+        """
+        @TODO: Collection statistics and health metrics.
+        
+        Metrics to track:
+        - Vector count
+        - Average similarity scores
+        - Search performance
+        - Memory distribution
+        """
+        # TODO: Stats implementation
+        pass
+    
+    async def analyze_vector_clusters(self, collection: str) -> Dict:
+        """
+        @TODO: Identify natural clusters in vector space.
+        
+        AGENTIC EMPOWERMENT: Find natural groupings that could
+        inform consolidation strategies.
+        """
+        # TODO: Clustering analysis
+        pass
+    
+    async def search_performance_metrics(self) -> Dict:
+        """
+        @TODO: Search latency and throughput metrics.
+        
+        AGENTIC EMPOWERMENT: Monitor system performance to
+        ensure <2s query latency requirements.
+        """
+        # TODO: Performance metrics
+        pass
+
+
+# @TODO: Vector utilities
+def normalize_vector(vector: np.ndarray) -> np.ndarray:
+    """
+    @TODO: Normalize vector for consistent similarity calculations.
+    
+    AGENTIC EMPOWERMENT: Proper normalization ensures fair
+    comparison between different vector types and magnitudes.
+    """
+    pass
+
+
+def combine_vectors(
+    semantic: np.ndarray, 
+    cognitive: np.ndarray,
+    semantic_weight: float = 0.8,
+    cognitive_weight: float = 0.2
+) -> np.ndarray:
+    """
+    @TODO: Intelligently combine semantic and cognitive vectors.
+    
+    AGENTIC EMPOWERMENT: The combination strategy affects
+    all similarity calculations. Balance semantic understanding
+    with cognitive insights.
+    """
+    pass
+
+
+async def benchmark_search_performance(
+    vector_store: QdrantVectorStore,
+    num_queries: int = 100
+) -> Dict:
+    """
+    @TODO: Benchmark vector search performance.
+    
+    AGENTIC EMPOWERMENT: Regular performance testing ensures
+    the system meets latency requirements as it scales.
+    """
+    pass
+
+
+# @TODO: Connection management
+class QdrantConnectionPool:
+    """
+    @TODO: Manage Qdrant connections efficiently.
+    
+    AGENTIC EMPOWERMENT: Proper connection management prevents
+    resource exhaustion and ensures reliable operations.
+    """
+    pass

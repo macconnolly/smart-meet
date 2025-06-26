@@ -38,10 +38,10 @@ class ONNXEncoder:
         """
         self.model_path = Path(model_path)
         self.session: Optional[ort.InferenceSession] = None
-        self.tokenizer = None  # TODO Day 2: Load from transformers
+        self.tokenizer = None  # TODO: [IMPL-D2-002] Load tokenizer from transformers
         self._cache_size = 10000
         
-        # TODO Day 2: Initialize model
+        # TODO: [IMPL-D2-002] Initialize ONNX model and tokenizer
         self._load_model()
     
     def _load_model(self) -> None:

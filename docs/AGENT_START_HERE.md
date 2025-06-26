@@ -6,9 +6,9 @@
 A system that transforms meeting transcripts into queryable cognitive memories using 400D vectors, activation spreading, and bridge discovery algorithms.
 
 ### Where are you in the process?
-1. Check `SETUP_STATUS_SUMMARY.md` - Current state & blockers
+1. Check `TASK_COMPLETION_CHECKLIST.md` - See completed vs pending tasks
 2. Check `IMPLEMENTATION_GUIDE.md` - Find today's work (Day 1-35)
-3. Check git log - See recent changes
+3. Read `current_project_state` memory - Latest status update
 
 ## 🎯 Your Workflow
 
@@ -39,12 +39,13 @@ IMPLEMENTATION_GUIDE.md (Day 1-35 roadmap)
     ↓
 Phase memory files (Detailed specs)
     ↓
-TASK_COMPLETION_CHECKLIST.md (Quality checks only)
+TASK_COMPLETION_CHECKLIST.md (ALL 129 tasks + quality checks)
 ```
 
 #### For Implementation Work:
 1. **Always start**: `IMPLEMENTATION_GUIDE.md` - Find your day
-2. **Get details**: Phase memory files
+2. **Get task IDs**: `TASK_COMPLETION_CHECKLIST.md` - All IMPL-D1-001 format tasks
+3. **Get details**: Phase memory files
    - `phase1_implementation_tasks` (Week 1: Foundation)
    - `phase2_implementation_tasks_detailed` (Week 2: Cognitive)
    - `phase3_implementation_tasks_consolidated` (Week 3: Advanced)
@@ -75,13 +76,14 @@ pytest tests/unit/test_<your_module>.py
 
 ### Documentation Hierarchy
 ```
-START_HERE.md (You are here)
-├── SETUP_STATUS_SUMMARY.md      (Current state)
-├── IMPLEMENTATION_GUIDE.md      (What to build)
-├── TASK_COMPLETION_CHECKLIST.md (Quality checks)
-├── CLAUDE.md                    (Project context)
+AGENT_START_HERE.md (You are here)
+├── IMPLEMENTATION_GUIDE.md      (What to build when)
+├── TASK_COMPLETION_CHECKLIST.md (ALL 129 tasks)
+├── CLAUDE.md                    (Project context & patterns)
+├── CLAUDE_NAVIGATION.md         (Where everything lives)
 └── docs/
-    └── TASK_TRACKING_SYSTEM.md  (Task numbering)
+    ├── technical-implementation.md (Full spec)
+    └── TASK_TRACKING_SYSTEM.md     (Infra tasks only)
 ```
 
 ### Code Structure
@@ -97,10 +99,10 @@ src/
 
 ### Where to Find Answers
 - **"What should I build?"** → IMPLEMENTATION_GUIDE.md
-- **"How should I build it?"** → Memory files + existing code patterns
-- **"What to check?"** → TASK_COMPLETION_CHECKLIST.md
-- **"Is something broken?"** → SETUP_STATUS_SUMMARY.md
-- **"How are tasks numbered?"** → docs/TASK_TRACKING_SYSTEM.md
+- **"What are all the tasks?"** → TASK_COMPLETION_CHECKLIST.md
+- **"How should I build it?"** → docs/technical-implementation.md + CLAUDE.md
+- **"What's the current status?"** → Read `current_project_state` memory
+- **"Where is everything?"** → CLAUDE_NAVIGATION.md
 
 ## ⚡ Common Agent Pitfalls
 

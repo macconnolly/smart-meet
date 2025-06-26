@@ -37,7 +37,9 @@
       "Bash(git config:*)",
       "Bash(python3:*)",
       "mcp__serena__get_symbols_overview",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "mcp__serena__find_symbol",
+      "mcp__serena__replace_regex"
     ],
     "deny": []
   }
