@@ -1,5 +1,8 @@
 # Task Completion Checklist
 
+> **Navigation**: [Home](README.md) → [Implementation Guide](IMPLEMENTATION_GUIDE.md) → Task Checklist  
+> **Related**: [Task Tracking](docs/TASK_TRACKING_SYSTEM.md) | [Progress Docs](docs/progress/) | [Workflow](structured_development_workflow)
+
 ## Before Starting Any Task
 - [ ] Read and understand the task requirements
 - [ ] Check existing memories for relevant context

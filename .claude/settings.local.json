@@ -30,7 +30,8 @@
       "Bash(mkdir:*)",
       "Bash(touch:*)",
       "mcp__serena__create_text_file",
-      "mcp__serena__switch_modes"
+      "mcp__serena__switch_modes",
+      "Bash(python scripts/check_project_state.py:*)"
     ],
     "deny": []
   }

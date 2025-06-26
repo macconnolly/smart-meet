@@ -1,5 +1,8 @@
 # 🧠 Cognitive Meeting Intelligence
 
+> **Quick Start**: [CLAUDE_NAVIGATION.md](CLAUDE_NAVIGATION.md) | [Implementation Guide](IMPLEMENTATION_GUIDE.md) | [Developer Setup](DEVELOPER_SETUP.md)  
+> **Tracking**: [Task System](docs/TASK_TRACKING_SYSTEM.md) | [Progress](docs/progress/)
+
 > Transform your organization's meetings into a living, thinking memory that learns, connects, and discovers insights like the human mind.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
