@@ -41,6 +41,33 @@ src/
 └── api/            # FastAPI endpoints
 ```
 
+## 🛠️ CRITICAL: Session Task Management
+
+### TodoWrite/TodoRead Usage (REQUIRED)
+**You MUST use TodoWrite at the start of ANY implementation session to:**
+1. Break down complex tasks into manageable steps
+2. Track progress throughout your work
+3. Ensure nothing is forgotten
+4. Give visibility to the user
+
+**Example Session Start:**
+```python
+# User: "Implement the ONNX encoder with caching"
+# You should immediately:
+TodoWrite([
+    {"id": "1", "content": "Download and setup ONNX model", "status": "pending", "priority": "high"},
+    {"id": "2", "content": "Implement ONNXEncoder class", "status": "pending", "priority": "high"},
+    {"id": "3", "content": "Add LRU caching", "status": "pending", "priority": "medium"},
+    {"id": "4", "content": "Write unit tests", "status": "pending", "priority": "medium"},
+    {"id": "5", "content": "Run performance benchmarks", "status": "pending", "priority": "low"}
+])
+```
+
+**Update todos as you work:**
+- Mark "in_progress" when starting a task
+- Mark "completed" IMMEDIATELY when done
+- Add new todos if you discover additional work
+
 ## 🔧 Key Commands & Workflows
 
 ### Development Setup

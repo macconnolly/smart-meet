@@ -3,12 +3,39 @@
 > **Navigation**: [Home](README.md) → [Implementation Guide](IMPLEMENTATION_GUIDE.md) → Task Checklist  
 > **Related**: [Task Tracking](docs/TASK_TRACKING_SYSTEM.md) | [Progress Docs](docs/progress/) | [Workflow](structured_development_workflow)
 
+## 🚨 CRITICAL: Session Task Management with TodoWrite/TodoRead
+
+### When to Use TodoWrite Tool
+**ALWAYS use TodoWrite for:**
+- Multi-step implementations (3+ steps)
+- Complex debugging sessions
+- Tasks spanning multiple files
+- Any work estimated >30 minutes
+- When user provides a list of tasks
+
+### How to Use Todo Tools Effectively
+```
+1. START of session: TodoWrite to plan all tasks
+2. BEFORE each task: Update status to "in_progress"
+3. AFTER completion: Mark as "completed" IMMEDIATELY
+4. NEW discoveries: Add new todos as found
+5. BLOCKERS: Update status and document why
+```
+
+### Example Todo Structure
+```
+- High Priority: Critical path items, blockers
+- Medium Priority: Normal implementation tasks  
+- Low Priority: Nice-to-have, cleanup tasks
+```
+
 ## Before Starting Any Task
+- [ ] Use TodoWrite to create session task list
 - [ ] Read and understand the task requirements
 - [ ] Check existing memories for relevant context
 - [ ] Review project architecture and patterns
 - [ ] Plan the implementation approach
-- [ ] Create todo items for complex tasks
+- [ ] Update todo item to "in_progress"
 
 ## Code Implementation Checklist
 
@@ -196,3 +223,28 @@
 - [ ] Branch is up to date with main
 - [ ] PR description is comprehensive
 - [ ] Code review requested
+
+## 📝 Maintaining This Checklist
+
+### When to Update This Checklist
+- [ ] After discovering new common issues
+- [ ] When adding new project features
+- [ ] After post-mortem of bugs/issues
+- [ ] When team identifies missing checks
+- [ ] During sprint retrospectives
+
+### How to Update
+1. Add new items to relevant section
+2. Keep items actionable and specific
+3. Include commands/examples where helpful
+4. Mark completed items with ✅ for progress tracking
+5. Update timestamp at bottom
+
+### Progress Tracking Rules
+- Use ✅ for completed items that should stay completed
+- Use - [ ] for items that need checking every time
+- Add date when major sections completed
+- Archive old completed sections to memories
+
+**Last Updated**: 2024-12-21
+**Checklist Version**: 2.0

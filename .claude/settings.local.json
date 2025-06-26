@@ -34,7 +34,9 @@
       "Bash(python scripts/check_project_state.py:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "Bash(python3:*)",
+      "mcp__serena__get_symbols_overview"
     ],
     "deny": []
   }
