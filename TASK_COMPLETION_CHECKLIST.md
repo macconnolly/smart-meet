@@ -1,7 +1,13 @@
 # Task Completion Checklist
 
-> **Navigation**: [Home](README.md) → [Implementation Guide](IMPLEMENTATION_GUIDE.md) → Task Checklist  
-> **Related**: [Task Tracking](docs/TASK_TRACKING_SYSTEM.md) | [Progress Docs](docs/progress/) | [Workflow](structured_development_workflow)
+> **Purpose**: Active checklist for EVERY implementation session. Use this alongside TodoWrite/TodoRead.
+> **Navigation**: [Setup Status](SETUP_STATUS_SUMMARY.md) → [Implementation Guide](IMPLEMENTATION_GUIDE.md) → [Task System](docs/TASK_TRACKING_SYSTEM.md)
+> 
+> ## 📋 File Relationships
+> - **This file**: What to check during implementation
+> - **IMPLEMENTATION_GUIDE.md**: What to build each day  
+> - **docs/TASK_TRACKING_SYSTEM.md**: How tasks are numbered/tracked
+> - **Memory files**: Detailed specs for each phase
 
 ## 🚨 CRITICAL: Session Task Management with TodoWrite/TodoRead
 

@@ -1,5 +1,6 @@
 # 🧠 Cognitive Meeting Intelligence
 
+> **🚀 NEW AGENT? START HERE**: [docs/AGENT_START_HERE.md](docs/AGENT_START_HERE.md)  
 > **Quick Start**: [CLAUDE_NAVIGATION.md](CLAUDE_NAVIGATION.md) | [Implementation Guide](IMPLEMENTATION_GUIDE.md) | [Developer Setup](DEVELOPER_SETUP.md)  
 > **Tracking**: [Task System](docs/TASK_TRACKING_SYSTEM.md) | [Progress](docs/progress/)
 
