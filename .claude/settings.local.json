@@ -31,7 +31,10 @@
       "Bash(touch:*)",
       "mcp__serena__create_text_file",
       "mcp__serena__switch_modes",
-      "Bash(python scripts/check_project_state.py:*)"
+      "Bash(python scripts/check_project_state.py:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git config:*)"
     ],
     "deny": []
   }
