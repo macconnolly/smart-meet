@@ -39,7 +39,18 @@
       "mcp__serena__get_symbols_overview",
       "Bash(mv:*)",
       "mcp__serena__find_symbol",
-      "mcp__serena__replace_regex"
+      "mcp__serena__replace_regex",
+      "Bash(source:*)",
+      "Bash(pip install:*)",
+      "Bash(sudo apt:*)",
+      "Bash(sudo apt install:*)",
+      "Bash(apt list:*)",
+      "Bash(openssl x509:*)",
+      "Bash(pip config set:*)",
+      "Bash(export:*)",
+      "Bash(pip --version)",
+      "Bash(./venv/bin/pip install:*)",
+      "Bash(venv/bin/python:*)"
     ],
     "deny": []
   }
