@@ -1,0 +1,56 @@
+app:
+  name: "Cognitive Meeting Intelligence"
+  version: "2.0.0"
+  environment: "development"
+
+storage:
+  qdrant:
+    host: "localhost"
+    port: 6333
+    timeout: 30
+    collections:
+      l0: "cognitive_concepts"
+      l1: "cognitive_contexts"
+      l2: "cognitive_episodes"
+  
+  sqlite:
+    path: "./data/memories.db"
+    echo: false
+    pool_size: 5
+
+ml:
+  model_path: "./models/all-MiniLM-L6-v2"
+  batch_size: 32
+  cache_size: 10000
+
+cognitive:
+  activation:
+    threshold: 0.7
+    max_activations: 50
+    decay_factor: 0.8
+    max_depth: 5
+  
+  bridges:
+    novelty_weight: 0.6
+    connection_weight: 0.4
+    threshold: 0.7
+    max_bridges: 5
+    cache_ttl: 3600
+  
+  consolidation:
+    access_threshold: 5
+    time_window_days: 7
+    cluster_min_size: 3
+    
+  decay:
+    episodic_rate: 0.1
+    semantic_rate: 0.01
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  cors_origins: ["*"]
+  
+logging:
+  level: "INFO"
+  format: "json"

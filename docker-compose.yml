@@ -1,0 +1,59 @@
+# Docker Compose for Cognitive Meeting Intelligence
+# Reference: IMPLEMENTATION_GUIDE.md - Day 6-7: API & Integration
+
+version: '3.8'
+
+services:
+  # Qdrant vector database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: cognitive_qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"  # gRPC port
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__LOG_LEVEL=INFO
+      - QDRANT__SERVICE__HOST=0.0.0.0
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+      # TODO Day 6: Configure for production
+      # - QDRANT__SERVICE__API_KEY=your-api-key
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/readyz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # FastAPI application (optional - for development)
+  # Uncomment to run API in container
+  # api:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: cognitive_api
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - ./data:/app/data
+  #     - ./models:/app/models
+  #   environment:
+  #     - DATABASE_URL=sqlite:///./data/memories.db
+  #     - QDRANT_HOST=qdrant
+  #     - QDRANT_PORT=6333
+  #     - LOG_LEVEL=INFO
+  #   depends_on:
+  #     qdrant:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+
+volumes:
+  qdrant_data:
+    driver: local
+
+networks:
+  default:
+    name: cognitive_network
+EOF < /dev/null
