@@ -55,10 +55,11 @@ TASK_COMPLETION_CHECKLIST.md (Quality checks only)
 - **Infrastructure**: `docs/TASK_TRACKING_SYSTEM.md` (PROJECT-XXX)
 - **Progress**: `docs/progress/` directory
 
-### 4. While Coding
-- Keep `TASK_COMPLETION_CHECKLIST.md` open
+### 4. While Coding  
+- Keep `TASK_COMPLETION_CHECKLIST.md` open (ALL tasks + quality checks)
 - Update todos to "in_progress" before starting
 - Mark "completed" immediately when done
+- Check off implementation tasks as you complete them
 - Run quality checks from checklist
 
 ### 5. Before Committing
