@@ -27,7 +27,7 @@ class ActivationConfig:
     spreads through the memory network. Your tuning determines
     the quality and scope of cognitive retrieval.
     """
-    threshold: float = 0.7          # TODO: Minimum activation to propagate
+    threshold: float = 0.7          # TODO: [IMPL-D8-002] Minimum activation to propagate
     max_activations: int = 50       # TODO: Maximum memories to activate
     decay_factor: float = 0.8       # TODO: Activation decay per level
     max_depth: int = 5              # TODO: Maximum search depth
@@ -124,7 +124,7 @@ class BFSActivationEngine(ActivationEngine):
         config: ActivationConfig = None
     ) -> List[ActivatedMemory]:
         """
-        @TODO: Implement the main activation spreading algorithm.
+        TODO: [IMPL-D8-001] Implement the main activation spreading algorithm.
         
         AGENTIC EMPOWERMENT: This is where cognitive magic happens.
         Starting from seed memories, spread activation through
@@ -140,7 +140,7 @@ class BFSActivationEngine(ActivationEngine):
         config = config or self.config
         activated_memories: Dict[str, ActivatedMemory] = {}
         
-        # TODO: Implement two-phase BFS algorithm
+        # TODO: [IMPL-D8-001] Implement two-phase BFS algorithm
         # Phase 1: Semantic spreading
         semantic_activated = await self._semantic_phase(seed_memories, config)
         
@@ -149,7 +149,7 @@ class BFSActivationEngine(ActivationEngine):
             semantic_activated, config
         )
         
-        # TODO: Combine and rank results
+        # TODO: [IMPL-D8-002] Combine and rank results by activation score
         return await self._rank_and_filter(
             semantic_activated + cognitive_activated, config
         )

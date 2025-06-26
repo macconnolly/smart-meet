@@ -77,17 +77,17 @@ class ONNXEncoder:
         Returns:
             Normalized 384D vector
             
-        TODO Day 2:
-        - [ ] Implement tokenization
-        - [ ] Run ONNX inference
-        - [ ] Normalize output vector
-        - [ ] Add timing logs
-        - [ ] Target: <100ms per encoding
+        TODO: [IMPL-D2-002] Complete ONNX encoding implementation
+        - [ ] Implement tokenization with transformers
+        - [ ] Run ONNX inference session
+        - [ ] Normalize output vector to unit length
+        - [ ] Add performance timing logs
+        - [ ] Target: <100ms per encoding (performance requirement)
         """
         # Hash for caching
         text_hash = hashlib.md5(text.encode()).hexdigest()
         
-        # TODO Day 2: Use cached encoding
+        # TODO: [IMPL-D2-002] Enable LRU cache for repeated encodings
         # return self._encode_cached(text_hash)
         
         # Placeholder
