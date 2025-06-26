@@ -31,17 +31,29 @@ TodoWrite([
 ])
 ```
 
-### 3. Find Your Tasks
+### 3. Find Your Tasks (SIMPLIFIED!)
+
+#### 📍 Single Source of Truth:
+```
+IMPLEMENTATION_GUIDE.md (Day 1-35 roadmap)
+    ↓
+Phase memory files (Detailed specs)
+    ↓
+TASK_COMPLETION_CHECKLIST.md (Quality checks only)
+```
 
 #### For Implementation Work:
-1. **IMPLEMENTATION_GUIDE.md** - Day-by-day roadmap
-2. **Memory files** - Detailed specs:
-   - `phase1_implementation_tasks` (Week 1)
-   - `phase2_implementation_tasks_detailed` (Week 2)
-   - etc.
+1. **Always start**: `IMPLEMENTATION_GUIDE.md` - Find your day
+2. **Get details**: Phase memory files
+   - `phase1_implementation_tasks` (Week 1: Foundation)
+   - `phase2_implementation_tasks_detailed` (Week 2: Cognitive)
+   - `phase3_implementation_tasks_consolidated` (Week 3: Advanced)
+   - `phase4_implementation_tasks` (Week 4: Consolidation)
+   - `phase5_implementation_tasks` (Week 5: Production)
 
-#### For Setup/Infrastructure:
-- **docs/TASK_TRACKING_SYSTEM.md** - PROJECT-XXX tasks
+#### For Other Work:
+- **Infrastructure**: `docs/TASK_TRACKING_SYSTEM.md` (PROJECT-XXX)
+- **Progress**: `docs/progress/` directory
 
 ### 4. While Coding
 - Keep `TASK_COMPLETION_CHECKLIST.md` open

@@ -116,57 +116,21 @@
 - [ ] No hardcoded values (use config)
 - [ ] Logging added for debugging
 
-## Phase-Specific Checklists
+## Finding Implementation Tasks
 
-### Phase 1: Foundation (Week 1)
-- [ ] SQLite database with enhanced schema (projects, meetings, deliverables)
-- [ ] ONNX model downloaded and converted
-- [ ] Qdrant 3-tier collections created
-- [ ] Basic ingestion pipeline working
-- [ ] 400D vector composition (384D + 16D)
-- [ ] Simple retrieval API functional
-- [ ] Temporal & Emotional extractors implemented
-- [ ] Placeholder extractors for remaining dimensions
+**⚠️ IMPORTANT**: This checklist is for QUALITY CHECKS ONLY.
 
-### Phase 2: Cognitive Intelligence (Week 2)
-- [ ] Project-aware activation spreading
-- [ ] Stakeholder influence calculation
-- [ ] Deliverable network activation
-- [ ] Two-phase BFS with path tracking
-- [ ] Consulting-specific classification
-- [ ] Meeting type prioritization
-- [ ] Cross-project insights (when enabled)
-- [ ] Performance < 500ms for project-scoped activation
+For actual implementation tasks, see:
+- **Day-by-day guide**: [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md)
+- **Detailed phase tasks**: Memory files (e.g., `phase1_implementation_tasks`)
+- **Current progress**: `docs/progress/` directory
 
-### Phase 3: Advanced Features (Week 3)
-- [ ] Bridge discovery with distance inversion
-- [ ] Social & Causal dimension extractors
-- [ ] Strategic dimension extractor (replacing evolutionary)
-- [ ] Advanced stakeholder sentiment analysis
-- [ ] Hypothesis-evidence linking
-- [ ] Risk-mitigation pairing
-- [ ] Bridge caching for performance
-
-### Phase 4: Consolidation (Week 4)
-- [ ] DBSCAN clustering implementation
-- [ ] Semantic memory generation
-- [ ] Individual memory promotion
-- [ ] Memory lifecycle management
-- [ ] Importance decay/reinforcement
-- [ ] Scheduled background tasks
-- [ ] Parent-child relationships
-- [ ] Consolidation performance < 5s for 1000 memories
-
-### Phase 5: Production (Week 5)
-- [ ] Unified cognitive API
-- [ ] Query caching with TTL
-- [ ] Database connection pooling
-- [ ] Input validation & sanitization
-- [ ] Rate limiting implementation
-- [ ] Structured logging
-- [ ] Performance monitoring
-- [ ] Docker optimization
-- [ ] Load testing passed
+### Quick Phase Reference
+- **Phase 1**: Foundation (Database, Embeddings, Storage) → `phase1_implementation_tasks`
+- **Phase 2**: Cognitive Intelligence (Activation Spreading) → `phase2_implementation_tasks_detailed`
+- **Phase 3**: Advanced Features (Bridge Discovery) → `phase3_implementation_tasks_consolidated`
+- **Phase 4**: Memory Consolidation (DBSCAN) → `phase4_implementation_tasks`
+- **Phase 5**: Production Hardening → `phase5_implementation_tasks`
 
 ## Deployment Checklist
 - [ ] Environment variables configured
