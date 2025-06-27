@@ -1,0 +1,62 @@
+# EditorConfig for Cognitive Meeting Intelligence System
+# https://editorconfig.org
+
+root = true
+
+# Universal settings
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+# Python files
+[*.py]
+indent_size = 4
+max_line_length = 100
+
+# Python interface files
+[*.pyi]
+indent_size = 4
+
+# YAML files
+[*.{yml,yaml}]
+indent_size = 2
+
+# JSON files
+[*.json]
+indent_size = 2
+
+# JavaScript/TypeScript (if added later)
+[*.{js,jsx,ts,tsx}]
+indent_size = 2
+
+# Shell scripts
+[*.{sh,bash}]
+indent_size = 2
+
+# Makefiles
+[Makefile]
+indent_style = tab
+
+# Markdown files
+[*.{md,markdown}]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# Configuration files
+[*.{ini,cfg,conf}]
+indent_size = 4
+
+# Docker files
+[Dockerfile*]
+indent_size = 4
+
+# Git files
+[.git*]
+indent_size = 4
+
+# Requirements files
+[requirements*.txt]
+indent_size = 0

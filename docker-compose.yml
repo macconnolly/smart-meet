@@ -56,4 +56,3 @@ volumes:
 networks:
   default:
     name: cognitive_network
-EOF < /dev/null

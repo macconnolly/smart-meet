@@ -50,7 +50,24 @@
       "Bash(export:*)",
       "Bash(pip --version)",
       "Bash(./venv/bin/pip install:*)",
-      "Bash(venv/bin/python:*)"
+      "Bash(venv/bin/python:*)",
+      "Bash(node:*)",
+      "Bash(chmod:*)",
+      "Bash(./setup_certificates.sh:*)",
+      "Bash(CERT_PATH=\"$(pwd)/zscaler.crt\" REQUESTS_CA_BUNDLE=\"$CERT_PATH\" SSL_CERT_FILE=\"$CERT_PATH\" venv/bin/python -m pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org -r requirements.txt)",
+      "Bash(docker:*)",
+      "Bash(. venv/bin/activate)",
+      "Bash(pip freeze)",
+      "Bash(pip config:*)",
+      "Bash(./venv/bin/pip --version)",
+      "Bash(./venv/bin/pip config:*)",
+      "Bash(venv/bin/pip3:*)",
+      "Bash(venv/bin/pip3 config:*)",
+      "Bash(venv/bin/pip3 install:*)",
+      "Bash(pip cache:*)",
+      "Bash(venv/bin/pip:*)",
+      "Bash(bash:*)",
+      "Bash(venv/bin/pip config:*)"
     ],
     "deny": []
   }
