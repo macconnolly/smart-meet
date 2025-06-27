@@ -132,6 +132,18 @@ These examples need to be adapted for the consulting-specific requirements:
 from src.cognitive.activation import BasicActivationEngine
 from src.cognitive.encoding import EnhancedCognitiveEncoder
 from src.cognitive.memory import DualMemorySystem
+from src.cognitive.storage import HierarchicalMemoryStorage, create_enhanced_sqlite_persistence
+from src.cognitive.retrieval import ContextualRetrieval, SimilaritySearch, SimpleBridgeDiscovery
+
+# Initialize enhanced storage
+vector_storage = HierarchicalMemoryStorage(
+    vector_size=400,
+    host="localhost",
+    port=6333
+)
+
+# Initialize enhanced SQLite persistence
+metadata_store, bridge_cache, stats_tracker, graph_store = create_enhanced_sqlite_persistence()
 
 # Initialize encoder
 encoder = EnhancedCognitiveEncoder(
@@ -140,13 +152,37 @@ encoder = EnhancedCognitiveEncoder(
     fusion_weights_path="models/embeddings/fusion_weights.npz"
 )
 
-# Initialize activation engine
+# Initialize retrieval components
 activation_engine = BasicActivationEngine(
     memory_repo=memory_repo,
     connection_repo=connection_repo,
-    vector_store=vector_store,
+    vector_store=vector_storage,
     core_threshold=0.7,
     peripheral_threshold=0.5
+)
+
+similarity_search = SimilaritySearch(
+    memory_repo=memory_repo,
+    vector_store=vector_storage,
+    recency_weight=0.2,
+    similarity_weight=0.8
+)
+
+bridge_discovery = SimpleBridgeDiscovery(
+    memory_repo=memory_repo,
+    vector_store=vector_storage,
+    novelty_weight=0.5,
+    connection_weight=0.5
+)
+
+# Initialize contextual retrieval coordinator
+retrieval = ContextualRetrieval(
+    memory_repo=memory_repo,
+    connection_repo=connection_repo,
+    vector_store=vector_storage,
+    activation_engine=activation_engine,
+    similarity_search=similarity_search,
+    bridge_discovery=bridge_discovery
 )
 
 # Initialize dual memory system
@@ -156,19 +192,50 @@ memory_system = DualMemorySystem(
     semantic_decay_rate=0.01
 )
 
-# Encode query
-query_vector = encoder.encode("What are the main project risks?")
+# Example: Encode and retrieve
+query = "What are the main project risks?"
+query_vector = encoder.encode(query)
 
-# Activate memories
-result = await activation_engine.activate_memories(
-    context=query_vector,
-    threshold=0.4,
-    max_activations=50,
-    project_id="acme-digital-001"
+# Perform contextual retrieval
+result = await retrieval.retrieve_memories(
+    query_context=query_vector,
+    max_core=10,
+    max_peripheral=15,
+    max_bridges=5,
+    project_id="acme-digital-001",
+    stakeholder_filter=["Jane Doe (CFO)"],
+    use_activation=True,
+    use_similarity=True,
+    use_bridges=True
 )
 
+# Access categorized results
+print(f"Core memories: {len(result.core_memories)}")
+print(f"Peripheral memories: {len(result.peripheral_memories)}")
+print(f"Bridge connections: {len(result.bridge_memories)}")
+
 # Store new experience
+new_memory = Memory(
+    id="mem_12345",
+    content="Risk identified: Timeline delay due to vendor issues",
+    project_id="acme-digital-001",
+    content_type=ContentType.RISK,
+    priority=Priority.HIGH,
+    # ... other fields
+)
 await memory_system.store_experience(new_memory)
+
+# Track retrieval statistics
+stats_tracker.track_retrieval(
+    query_id="query_001",
+    query_vector=query_vector,
+    retrieval_method="contextual",
+    memories_retrieved=len(result.get_all_memories()),
+    core_memories=len(result.core_memories),
+    peripheral_memories=len(result.peripheral_memories),
+    bridge_memories=len(result.bridge_memories),
+    retrieval_time_ms=result.retrieval_time_ms
+)
 
 # Run consolidation cycle
 consolidation_stats = await memory_system.consolidate_memories()
