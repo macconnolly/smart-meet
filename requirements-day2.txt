@@ -1,0 +1,17 @@
+# Day 2 requirements - embeddings and ONNX
+numpy==1.24.3
+onnxruntime==1.16.1
+sentence-transformers==2.2.2
+transformers==4.35.2
+torch==2.1.0
+
+# Basic dependencies
+pydantic==2.5.0
+aiosqlite==0.19.0
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# Development
+black==23.11.0

@@ -18,14 +18,14 @@ from pathlib import Path
 def setup_pre_commit():
     """Install and configure pre-commit hooks."""
     print("🔧 Setting up pre-commit hooks...")
-    
+
     # Check if pre-commit is installed
     try:
         subprocess.run(["pre-commit", "--version"], check=True, capture_output=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("Installing pre-commit...")
         subprocess.run([sys.executable, "-m", "pip", "install", "pre-commit"], check=True)
-    
+
     # Create .pre-commit-config.yaml if it doesn't exist
     config_path = Path(".pre-commit-config.yaml")
     if not config_path.exists():
@@ -78,21 +78,21 @@ repos:
         always_run: true
 """
         config_path.write_text(config_content)
-    
+
     # Install pre-commit hooks
     print("Installing git hooks...")
     subprocess.run(["pre-commit", "install"], check=True)
     subprocess.run(["pre-commit", "install", "--hook-type", "commit-msg"], check=True)
-    
+
     print("✅ Pre-commit hooks installed successfully!")
 
 
 def create_commit_msg_checker():
     """Create script to validate commit messages."""
     checker_path = Path("scripts/check_commit_msg.py")
-    
+
     print("Creating commit message checker...")
-    
+
     checker_content = '''#!/usr/bin/env python3
 """Check commit message follows project conventions."""
 
@@ -157,27 +157,27 @@ def main():
 if __name__ == "__main__":
     main()
 '''
-    
+
     checker_path.write_text(checker_content)
     checker_path.chmod(0o755)  # Make executable
-    
+
     print("✅ Commit message checker created!")
 
 
 def main():
     """Main setup function."""
     print("🚀 Setting up Git workflow enforcement...\n")
-    
+
     # Change to project root
     project_root = Path(__file__).parent.parent
     os.chdir(project_root)
-    
+
     # Create commit message checker
     create_commit_msg_checker()
-    
+
     # Setup pre-commit
     setup_pre_commit()
-    
+
     print("\n✨ Git workflow enforcement setup complete!")
     print("\nNext steps:")
     print("1. Run: pre-commit run --all-files  # Test on existing files")
