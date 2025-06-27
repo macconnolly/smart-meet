@@ -89,8 +89,7 @@
       "Bash(./worktree-sync.sh status:*)",
       "Bash(./worktree-sync.sh:*)",
       "Bash(git rm:*)",
-      "Bash(black:*)",
-      "Bash(flake8:*)"
+      "Bash(black --version)"
     ],
     "deny": []
   }
