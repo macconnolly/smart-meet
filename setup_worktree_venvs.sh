@@ -52,17 +52,44 @@ setup_venv() {
     print_color "$GREEN" "Upgrading pip..."
     pip install --upgrade pip
     
-    # Install requirements
-    if [[ -f "requirements.txt" ]]; then
-        print_color "$GREEN" "Installing requirements..."
-        pip install -r requirements.txt
-    fi
-    
-    # Install dev requirements if they exist
-    if [[ -f "requirements-dev.txt" ]]; then
-        print_color "$GREEN" "Installing dev requirements..."
-        pip install -r requirements-dev.txt
-    fi
+    # Install requirements based on worktree
+    case "$worktree_name" in
+        worktree-tests)
+            if [[ -f "requirements-tests.txt" ]]; then
+                print_color "$GREEN" "Installing test requirements..."
+                pip install -r requirements-tests.txt
+            fi
+            ;;
+        worktree-day1)
+            if [[ -f "requirements-day1.txt" ]]; then
+                print_color "$GREEN" "Installing Day 1 requirements..."
+                pip install -r requirements-day1.txt
+            fi
+            ;;
+        worktree-day2)
+            if [[ -f "requirements-day2.txt" ]]; then
+                print_color "$GREEN" "Installing Day 2 requirements..."
+                pip install -r requirements-day2.txt
+            fi
+            ;;
+        worktree-day3)
+            if [[ -f "requirements-day3.txt" ]]; then
+                print_color "$GREEN" "Installing Day 3 requirements..."
+                pip install -r requirements-day3.txt
+            fi
+            ;;
+        *)
+            # Main directory or unknown - use standard requirements
+            if [[ -f "requirements.txt" ]]; then
+                print_color "$GREEN" "Installing requirements..."
+                pip install -r requirements.txt
+            fi
+            if [[ -f "requirements-dev.txt" ]]; then
+                print_color "$GREEN" "Installing dev requirements..."
+                pip install -r requirements-dev.txt
+            fi
+            ;;
+    esac
     
     # Install project in editable mode
     if [[ -f "setup.py" ]] || [[ -f "pyproject.toml" ]]; then
