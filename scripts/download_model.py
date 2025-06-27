@@ -19,7 +19,7 @@ from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModel
 
 # Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 async def main():
@@ -43,7 +43,7 @@ async def main():
         # Check if model already exists
         if (model_path / "model.onnx").exists():
             response = input("Model already exists. Re-download and convert? (y/N): ")
-            if response.lower() != 'y':
+            if response.lower() != "y":
                 print("✅ Using existing model")
                 return 0
 
@@ -142,16 +142,16 @@ async def convert_to_onnx(model_path: Path):
             transformer_model,
             (dummy_input_ids, dummy_attention_mask),
             str(onnx_path),
-            input_names=['input_ids', 'attention_mask'],
-            output_names=['last_hidden_state'],
+            input_names=["input_ids", "attention_mask"],
+            output_names=["last_hidden_state"],
             dynamic_axes={
-                'input_ids': {0: 'batch_size', 1: 'sequence'},
-                'attention_mask': {0: 'batch_size', 1: 'sequence'},
-                'last_hidden_state': {0: 'batch_size', 1: 'sequence'}
+                "input_ids": {0: "batch_size", 1: "sequence"},
+                "attention_mask": {0: "batch_size", 1: "sequence"},
+                "last_hidden_state": {0: "batch_size", 1: "sequence"},
             },
             opset_version=14,
             do_constant_folding=True,
-            export_params=True
+            export_params=True,
         )
 
         print(f"  ✓ ONNX model saved to {onnx_path}")
@@ -194,11 +194,7 @@ async def verify_model_setup(model_path: Path):
         import numpy as np
 
         # Check required files exist
-        required_files = [
-            "model.onnx",
-            "pytorch_model",
-            "tokenizer"
-        ]
+        required_files = ["model.onnx", "pytorch_model", "tokenizer"]
 
         for file_name in required_files:
             file_path = model_path / file_name
@@ -215,7 +211,7 @@ async def verify_model_setup(model_path: Path):
         sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
         # Use CPU provider
-        providers = ['CPUExecutionProvider']
+        providers = ["CPUExecutionProvider"]
 
         session = ort.InferenceSession(str(onnx_path), sess_options, providers=providers)
         print(f"  ✓ ONNX model loads successfully")
@@ -223,6 +219,7 @@ async def verify_model_setup(model_path: Path):
 
         # Test tokenizer loading
         from transformers import AutoTokenizer
+
         tokenizer_path = model_path / "tokenizer"
         tokenizer = AutoTokenizer.from_pretrained(str(tokenizer_path))
         print(f"  ✓ Tokenizer loads successfully")
@@ -232,11 +229,7 @@ async def verify_model_setup(model_path: Path):
 
         # Tokenize
         inputs = tokenizer(
-            test_text,
-            return_tensors="np",
-            padding=True,
-            truncation=True,
-            max_length=512
+            test_text, return_tensors="np", padding=True, truncation=True, max_length=512
         )
 
         # Run inference
@@ -244,8 +237,8 @@ async def verify_model_setup(model_path: Path):
             None,
             {
                 "input_ids": inputs["input_ids"].astype(np.int64),
-                "attention_mask": inputs["attention_mask"].astype(np.int64)
-            }
+                "attention_mask": inputs["attention_mask"].astype(np.int64),
+            },
         )
 
         # Get token embeddings and apply mean pooling
@@ -301,41 +294,39 @@ async def benchmark_model_performance(model_path: Path):
         test_texts = [
             "Short text for testing.",
             "This is a medium length sentence that represents typical meeting content for performance testing.",
-            "This is a much longer sentence that might appear in meeting transcripts, containing multiple clauses and complex ideas about strategic planning, technical architecture, and team collaboration that needs to be processed efficiently by the cognitive meeting intelligence system."
+            "This is a much longer sentence that might appear in meeting transcripts, containing multiple clauses and complex ideas about strategic planning, technical architecture, and team collaboration that needs to be processed efficiently by the cognitive meeting intelligence system.",
         ] * 10  # 30 texts total
 
         # Warm-up runs
         print(f"  🔥 Warming up model...")
         for _ in range(5):
             inputs = tokenizer(
-                test_texts[0],
-                return_tensors="np",
-                padding=True,
-                truncation=True,
-                max_length=512
+                test_texts[0], return_tensors="np", padding=True, truncation=True, max_length=512
             )
-            session.run(None, {
-                "input_ids": inputs["input_ids"].astype(np.int64),
-                "attention_mask": inputs["attention_mask"].astype(np.int64)
-            })
+            session.run(
+                None,
+                {
+                    "input_ids": inputs["input_ids"].astype(np.int64),
+                    "attention_mask": inputs["attention_mask"].astype(np.int64),
+                },
+            )
 
         # Single inference benchmark
         print(f"  🚀 Benchmarking single inference...")
 
         inputs = tokenizer(
-            test_texts[0],
-            return_tensors="np",
-            padding=True,
-            truncation=True,
-            max_length=512
+            test_texts[0], return_tensors="np", padding=True, truncation=True, max_length=512
         )
 
         start_time = time.perf_counter()
         for _ in range(100):
-            session.run(None, {
-                "input_ids": inputs["input_ids"].astype(np.int64),
-                "attention_mask": inputs["attention_mask"].astype(np.int64)
-            })
+            session.run(
+                None,
+                {
+                    "input_ids": inputs["input_ids"].astype(np.int64),
+                    "attention_mask": inputs["attention_mask"].astype(np.int64),
+                },
+            )
         single_time = (time.perf_counter() - start_time) / 100
 
         print(f"  📊 Single inference: {single_time*1000:.2f}ms")
@@ -344,18 +335,17 @@ async def benchmark_model_performance(model_path: Path):
         print(f"  🚀 Benchmarking batch inference...")
 
         batch_inputs = tokenizer(
-            test_texts,
-            return_tensors="np",
-            padding=True,
-            truncation=True,
-            max_length=512
+            test_texts, return_tensors="np", padding=True, truncation=True, max_length=512
         )
 
         start_time = time.perf_counter()
-        outputs = session.run(None, {
-            "input_ids": batch_inputs["input_ids"].astype(np.int64),
-            "attention_mask": batch_inputs["attention_mask"].astype(np.int64)
-        })
+        outputs = session.run(
+            None,
+            {
+                "input_ids": batch_inputs["input_ids"].astype(np.int64),
+                "attention_mask": batch_inputs["attention_mask"].astype(np.int64),
+            },
+        )
         batch_time = time.perf_counter() - start_time
 
         throughput = len(test_texts) / batch_time
@@ -364,6 +354,7 @@ async def benchmark_model_performance(model_path: Path):
 
         # Memory usage estimation
         import psutil
+
         process = psutil.Process()
         memory_mb = process.memory_info().rss / (1024 * 1024)
         print(f"  💾 Memory usage: {memory_mb:.1f} MB")
@@ -373,7 +364,9 @@ async def benchmark_model_performance(model_path: Path):
         if throughput >= target_throughput:
             print(f"  ✅ Performance target met ({throughput:.1f} >= {target_throughput} texts/sec)")
         else:
-            print(f"  ⚠️  Performance below target ({throughput:.1f} < {target_throughput} texts/sec)")
+            print(
+                f"  ⚠️  Performance below target ({throughput:.1f} < {target_throughput} texts/sec)"
+            )
 
         # Check single encoding target
         if single_time * 1000 < 100:
@@ -400,12 +393,9 @@ async def cleanup_temporary_files(model_path: Path):
         print(f"  ⚠️  Cleanup failed: {e}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Set up logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
     # Check dependencies
     try:

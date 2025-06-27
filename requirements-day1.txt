@@ -1,0 +1,13 @@
+# Day 1 requirements - models and database only
+pydantic==2.5.0
+aiosqlite==0.19.0
+python-dateutil==2.8.2
+
+# Testing (to run tests)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# Development
+black==23.11.0
+flake8==6.1.0
+mypy==1.7.1

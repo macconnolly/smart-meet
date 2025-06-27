@@ -38,6 +38,17 @@ class EmotionalFeatures:
             self.intensity,
             self.confidence
         ])
+    
+    @classmethod
+    def from_array(cls, array: np.ndarray) -> 'EmotionalFeatures':
+        """Create from numpy array."""
+        if array.shape != (3,):
+            raise ValueError(f"Array must be 3D, got {array.shape}")
+        return cls(
+            polarity=float(array[0]),
+            intensity=float(array[1]),
+            confidence=float(array[2])
+        )
 
 
 class EmotionalDimensionExtractor:

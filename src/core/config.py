@@ -14,93 +14,70 @@ import os
 class Settings(BaseSettings):
     """
     Application settings with environment variable support.
-    
+
     Settings are loaded from environment variables or .env file.
     """
-    
+
     # Application settings
     app_name: str = "Cognitive Meeting Intelligence"
     environment: str = Field("development", env="ENVIRONMENT")
     debug: bool = Field(False, env="DEBUG")
     log_level: str = Field("INFO", env="LOG_LEVEL")
-    
+
     # API settings
     api_host: str = Field("0.0.0.0", env="API_HOST")
     api_port: int = Field(8000, env="API_PORT")
     api_prefix: str = Field("/api/v2", env="API_PREFIX")
     cors_origins: List[str] = Field(
-        ["http://localhost:3000", "http://localhost:8000"],
-        env="CORS_ORIGINS"
+        ["http://localhost:3000", "http://localhost:8000"], env="CORS_ORIGINS"
     )
-    
+
     # Database settings
-    database_url: str = Field(
-        "sqlite:///data/cognitive.db",
-        env="DATABASE_URL"
-    )
+    database_url: str = Field("sqlite:///data/cognitive.db", env="DATABASE_URL")
     database_pool_size: int = Field(5, env="DATABASE_POOL_SIZE")
-    
+
     # Qdrant settings
     qdrant_host: str = Field("localhost", env="QDRANT_HOST")
     qdrant_port: int = Field(6333, env="QDRANT_PORT")
     qdrant_api_key: Optional[str] = Field(None, env="QDRANT_API_KEY")
     qdrant_prefer_grpc: bool = Field(False, env="QDRANT_PREFER_GRPC")
     qdrant_timeout: int = Field(30, env="QDRANT_TIMEOUT")
-    
+
     # Model settings
-    model_path: str = Field(
-        "models/embeddings/model.onnx",
-        env="MODEL_PATH"
-    )
-    tokenizer_path: str = Field(
-        "models/embeddings/tokenizer",
-        env="TOKENIZER_PATH"
-    )
+    model_path: str = Field("models/embeddings/model.onnx", env="MODEL_PATH")
+    tokenizer_path: str = Field("models/embeddings/tokenizer", env="TOKENIZER_PATH")
     model_cache_size: int = Field(10000, env="MODEL_CACHE_SIZE")
-    
+
     # Pipeline settings
     pipeline_batch_size: int = Field(50, env="PIPELINE_BATCH_SIZE")
     pipeline_parallel: bool = Field(True, env="PIPELINE_PARALLEL")
     min_memory_length: int = Field(10, env="MIN_MEMORY_LENGTH")
     max_memory_length: int = Field(1000, env="MAX_MEMORY_LENGTH")
-    
+
     # Cognitive settings
     activation_threshold: float = Field(0.7, env="ACTIVATION_THRESHOLD")
     max_activations: int = Field(50, env="MAX_ACTIVATIONS")
     activation_decay_factor: float = Field(0.8, env="ACTIVATION_DECAY_FACTOR")
     activation_max_depth: int = Field(5, env="ACTIVATION_MAX_DEPTH")
-    
+
     # Security settings
-    secret_key: str = Field(
-        "your-secret-key-here-change-in-production",
-        env="SECRET_KEY"
-    )
-    access_token_expire_minutes: int = Field(
-        30,
-        env="ACCESS_TOKEN_EXPIRE_MINUTES"
-    )
-    
+    secret_key: str = Field("your-secret-key-here-change-in-production", env="SECRET_KEY")
+    access_token_expire_minutes: int = Field(30, env="ACCESS_TOKEN_EXPIRE_MINUTES")
+
     # Feature flags
-    enable_activation_spreading: bool = Field(
-        True,
-        env="ENABLE_ACTIVATION_SPREADING"
-    )
-    enable_bridge_discovery: bool = Field(
-        True,
-        env="ENABLE_BRIDGE_DISCOVERY"
-    )
+    enable_activation_spreading: bool = Field(True, env="ENABLE_ACTIVATION_SPREADING")
+    enable_bridge_discovery: bool = Field(True, env="ENABLE_BRIDGE_DISCOVERY")
     enable_memory_consolidation: bool = Field(
-        False,  # Not implemented in Phase 1
-        env="ENABLE_MEMORY_CONSOLIDATION"
+        False, env="ENABLE_MEMORY_CONSOLIDATION"  # Not implemented in Phase 1
     )
-    
+
     @validator("cors_origins", pre=True)
     def parse_cors_origins(cls, v):
         """Parse CORS origins from comma-separated string."""
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
         return v
-    
+
     @validator("environment")
     def validate_environment(cls, v):
         """Validate environment is one of allowed values."""
@@ -108,7 +85,7 @@ class Settings(BaseSettings):
         if v not in allowed:
             raise ValueError(f"environment must be one of {allowed}")
         return v
-    
+
     @validator("log_level")
     def validate_log_level(cls, v):
         """Validate log level."""
@@ -116,9 +93,10 @@ class Settings(BaseSettings):
         if v.upper() not in allowed:
             raise ValueError(f"log_level must be one of {allowed}")
         return v.upper()
-    
+
     class Config:
         """Pydantic configuration."""
+
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
@@ -126,15 +104,17 @@ class Settings(BaseSettings):
 
 class DevelopmentSettings(Settings):
     """Development-specific settings."""
+
     debug: bool = True
     log_level: str = "DEBUG"
 
 
 class ProductionSettings(Settings):
     """Production-specific settings."""
+
     debug: bool = False
     log_level: str = "INFO"
-    
+
     @validator("secret_key")
     def validate_secret_key(cls, v):
         """Ensure secret key is changed in production."""
@@ -147,11 +127,11 @@ class ProductionSettings(Settings):
 def get_settings() -> Settings:
     """
     Get cached settings instance.
-    
+
     Returns settings based on ENVIRONMENT variable.
     """
     env = os.getenv("ENVIRONMENT", "development")
-    
+
     if env == "development":
         return DevelopmentSettings()
     elif env == "production":
@@ -174,7 +154,7 @@ def get_qdrant_config() -> dict:
         "port": settings.qdrant_port,
         "api_key": settings.qdrant_api_key,
         "prefer_grpc": settings.qdrant_prefer_grpc,
-        "timeout": settings.qdrant_timeout
+        "timeout": settings.qdrant_timeout,
     }
 
 
@@ -184,7 +164,7 @@ def get_model_config() -> dict:
     return {
         "model_path": settings.model_path,
         "tokenizer_path": settings.tokenizer_path,
-        "cache_size": settings.model_cache_size
+        "cache_size": settings.model_cache_size,
     }
 
 
@@ -195,7 +175,7 @@ def get_pipeline_config() -> dict:
         "batch_size": settings.pipeline_batch_size,
         "parallel": settings.pipeline_parallel,
         "min_memory_length": settings.min_memory_length,
-        "max_memory_length": settings.max_memory_length
+        "max_memory_length": settings.max_memory_length,
     }
 
 
@@ -206,7 +186,7 @@ def get_activation_config() -> dict:
         "threshold": settings.activation_threshold,
         "max_activations": settings.max_activations,
         "decay_factor": settings.activation_decay_factor,
-        "max_depth": settings.activation_max_depth
+        "max_depth": settings.activation_max_depth,
     }
 
 

@@ -16,7 +16,7 @@ from .deliverable_repository import DeliverableRepository
 __all__ = [
     "BaseRepository",
     "ProjectRepository",
-    "MeetingRepository", 
+    "MeetingRepository",
     "MemoryRepository",
     "MemoryConnectionRepository",
     "StakeholderRepository",
@@ -25,25 +25,31 @@ __all__ = [
 
 # Repository factory functions for dependency injection
 
+
 def get_project_repository(db_connection) -> ProjectRepository:
     """Create a project repository instance."""
     return ProjectRepository(db_connection)
+
 
 def get_meeting_repository(db_connection) -> MeetingRepository:
     """Create a meeting repository instance."""
     return MeetingRepository(db_connection)
 
+
 def get_memory_repository(db_connection) -> MemoryRepository:
     """Create a memory repository instance."""
     return MemoryRepository(db_connection)
+
 
 def get_memory_connection_repository(db_connection) -> MemoryConnectionRepository:
     """Create a memory connection repository instance."""
     return MemoryConnectionRepository(db_connection)
 
+
 def get_stakeholder_repository(db_connection) -> StakeholderRepository:
     """Create a stakeholder repository instance."""
     return StakeholderRepository(db_connection)
+
 
 def get_deliverable_repository(db_connection) -> DeliverableRepository:
     """Create a deliverable repository instance."""
