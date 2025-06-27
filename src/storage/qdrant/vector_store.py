@@ -4,6 +4,11 @@ Qdrant vector store for high-performance similarity search.
 This module handles all vector operations including storage, retrieval,
 and similarity search across the 3-tier hierarchy (L0/L1/L2).
 """
+
+import numpy as np
+from qdrant_client import QdrantClient
+from qdrant_client.models import PointStruct
+
 class HierarchicalMemoryStorage:
     """Enhanced Qdrant storage with Heimdall's optimizations"""
     

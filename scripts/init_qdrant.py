@@ -1,4 +1,4 @@
-#\!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Initialize Qdrant collections for 3-tier memory system.
 
@@ -46,7 +46,7 @@ async def init_qdrant_collections():
             info = await vector_store.get_collection_info(collection)
             logger.info(f"{collection}: {info}")
         
-        logger.info("Qdrant initialization complete\!")
+        logger.info("Qdrant initialization complete!")
         
     except Exception as e:
         logger.error(f"Failed to initialize Qdrant: {e}")
@@ -61,4 +61,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-EOF < /dev/null

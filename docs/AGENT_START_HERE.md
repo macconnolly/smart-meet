@@ -16,6 +16,24 @@ A system that transforms meeting transcripts into queryable cognitive memories u
 ```bash
 # Always start with:
 source venv/bin/activate  # or venv\Scripts\activate on Windows
+
+# Start databases:
+docker-compose up -d  # Starts Qdrant vector database (port 6333)
+# Note: SQLite is embedded - no service needed!
+
+# Check database status:
+docker ps  # Should show cognitive_qdrant running
+# SQLite file will be at: data/memories.db
+
+# Initialize databases (first time only):
+python scripts/init_db.py      # Creates SQLite schema at data/memories.db
+python scripts/init_qdrant.py  # Creates 3 Qdrant collections (L0, L1, L2)
+
+# Verify databases:
+sqlite3 data/memories.db ".tables"  # Should show 5 tables
+curl http://localhost:6333/collections  # Should show 3 collections
+
+# Check project state:
 python scripts/check_project_state.py
 ```
 
@@ -95,6 +113,25 @@ src/
 ├── storage/               (Day 4)
 ├── pipeline/              (Day 5)
 └── api/                   (Day 6-7)
+```
+
+### Database Architecture
+```
+📊 Dual Storage System:
+
+1. SQLite (data/memories.db) - Metadata & Relationships
+   ├── meetings table - Meeting info & participants
+   ├── memories table - Memory content & metadata
+   ├── memory_connections table - Relationships
+   ├── search_history table - Query tracking
+   └── system_metadata table - System state
+
+2. Qdrant (localhost:6333) - 400D Vector Storage
+   ├── cognitive_episodes (L2) - Raw memories, fast search
+   ├── cognitive_contexts (L1) - Consolidated patterns
+   └── cognitive_concepts (L0) - Highest abstractions
+
+Vector = 384D semantic (MiniLM) + 16D cognitive features
 ```
 
 ### Where to Find Answers

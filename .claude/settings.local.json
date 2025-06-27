@@ -67,7 +67,16 @@
       "Bash(pip cache:*)",
       "Bash(venv/bin/pip:*)",
       "Bash(bash:*)",
-      "Bash(venv/bin/pip config:*)"
+      "Bash(venv/bin/pip config:*)",
+      "Bash(grep:*)",
+      "Bash(dos2unix:*)",
+      "Bash(sed:*)",
+      "Bash(PYTHONPATH=/mnt/c/Users/EL436GA/dev/meet venv/bin/python3 scripts/init_db.py)",
+      "Bash(python:*)",
+      "Bash(python:*)",
+      "Bash(PYTHONPATH=/mnt/c/Users/EL436GA/dev/meet venv/bin/python3 scripts/init_qdrant.py)",
+      "Bash(find:*)",
+      "Bash(sqlite3:*)"
     ],
     "deny": []
   }

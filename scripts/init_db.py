@@ -16,8 +16,32 @@ import os
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from src.core.config import ConfigManager
-from src.storage.sqlite.memory_repository import initialize_database
+# TODO: Import these when implemented (Day 1)
+# from src.core.config import ConfigManager
+# from src.storage.sqlite.memory_repository import initialize_database
+
+# Temporary implementation until Day 1
+class ConfigManager:
+    async def load_config(self):
+        class Config:
+            class Database:
+                sqlite_path = "data/memories.db"
+            database = Database()
+        return Config()
+
+async def initialize_database(db_path: str):
+    """Initialize database with schema.sql"""
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Read and execute schema
+    schema_path = Path(__file__).parent.parent / "src" / "storage" / "sqlite" / "schema.sql"
+    with open(schema_path, 'r') as f:
+        schema_sql = f.read()
+    
+    cursor.executescript(schema_sql)
+    conn.commit()
+    conn.close()
 
 
 async def main():
@@ -104,14 +128,14 @@ async def create_performance_indexes(db_path: str):
             "CREATE INDEX IF NOT EXISTS idx_memories_access_count ON memories(access_count)",
             "CREATE INDEX IF NOT EXISTS idx_memories_last_accessed ON memories(last_accessed)",
             
-            # Relationship queries
-            "CREATE INDEX IF NOT EXISTS idx_relationships_memory1 ON relationships(memory_id_1)",
-            "CREATE INDEX IF NOT EXISTS idx_relationships_memory2 ON relationships(memory_id_2)",
-            "CREATE INDEX IF NOT EXISTS idx_relationships_type ON relationships(relationship_type)",
+            # Connection queries (updated table name)
+            "CREATE INDEX IF NOT EXISTS idx_connections_source ON memory_connections(source_id)",
+            "CREATE INDEX IF NOT EXISTS idx_connections_target ON memory_connections(target_id)",
+            "CREATE INDEX IF NOT EXISTS idx_connections_type ON memory_connections(connection_type)",
             
             # Meeting queries
-            "CREATE INDEX IF NOT EXISTS idx_meetings_date ON meetings(date)",
-            "CREATE INDEX IF NOT EXISTS idx_meetings_type ON meetings(meeting_type)",
+            "CREATE INDEX IF NOT EXISTS idx_meetings_start_time ON meetings(start_time)",
+            "CREATE INDEX IF NOT EXISTS idx_meetings_created_at ON meetings(created_at)",
             
             # Composite indexes for common queries
             "CREATE INDEX IF NOT EXISTS idx_memories_type_date ON memories(memory_type, created_at)",
@@ -144,40 +168,40 @@ async def insert_sample_data(db_path: str):
             {
                 'id': 'meeting_001',
                 'title': 'Product Strategy Q1 Planning',
-                'date': '2024-01-15 10:00:00',
-                'participants': '["Alice Johnson", "Bob Smith", "Charlie Davis"]',
-                'duration': 90,
-                'meeting_type': 'strategy',
+                'start_time': '2024-01-15 10:00:00',
+                'end_time': '2024-01-15 11:30:00',
+                'participants_json': '["Alice Johnson", "Bob Smith", "Charlie Davis"]',
+                'transcript_path': 'data/transcripts/meeting_001.txt',
                 'metadata_json': '{"location": "Conference Room A", "recorded": true}'
             },
             {
                 'id': 'meeting_002', 
                 'title': 'Technical Architecture Review',
-                'date': '2024-01-16 14:00:00',
-                'participants': '["David Wilson", "Eve Brown", "Frank Miller"]',
-                'duration': 120,
-                'meeting_type': 'technical',
+                'start_time': '2024-01-16 14:00:00',
+                'end_time': '2024-01-16 16:00:00',
+                'participants_json': '["David Wilson", "Eve Brown", "Frank Miller"]',
+                'transcript_path': 'data/transcripts/meeting_002.txt',
                 'metadata_json': '{"location": "Virtual", "recorded": true}'
             },
             {
                 'id': 'meeting_003',
                 'title': 'Weekly Team Sync',
-                'date': '2024-01-17 09:00:00', 
-                'participants': '["Alice Johnson", "Bob Smith", "Grace Lee"]',
-                'duration': 30,
-                'meeting_type': 'sync',
+                'start_time': '2024-01-17 09:00:00',
+                'end_time': '2024-01-17 09:30:00', 
+                'participants_json': '["Alice Johnson", "Bob Smith", "Grace Lee"]',
+                'transcript_path': None,
                 'metadata_json': '{"location": "Virtual", "recorded": false}'
             }
         ]
         
         for meeting in sample_meetings:
             cursor.execute("""
-                INSERT INTO meetings (id, title, date, participants, duration, meeting_type, metadata_json)
+                INSERT INTO meetings (id, title, start_time, end_time, participants_json, transcript_path, metadata_json)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (
-                meeting['id'], meeting['title'], meeting['date'], 
-                meeting['participants'], meeting['duration'], 
-                meeting['meeting_type'], meeting['metadata_json']
+                meeting['id'], meeting['title'], meeting['start_time'], 
+                meeting['end_time'], meeting['participants_json'], 
+                meeting['transcript_path'], meeting['metadata_json']
             ))
         
         print(f"  ✓ Inserted {len(sample_meetings)} sample meetings")
@@ -187,78 +211,87 @@ async def insert_sample_data(db_path: str):
             {
                 'id': 'mem_001',
                 'content': 'We decided to prioritize the mobile app development for Q1, targeting iOS first with Android following in Q2.',
-                'memory_type': 'EPISODIC',
-                'content_type': 'DECISION',
+                'memory_type': 'decision',
+                'content_type': 'strategic',
                 'meeting_id': 'meeting_001',
-                'speaker_id': 'Alice Johnson',
-                'confidence': 0.95,
-                'created_at': '2024-01-15 10:15:00',
-                'access_count': 0,
-                'metadata_json': '{"importance": "high", "stakeholders": ["mobile_team", "product_team"]}'
+                'speaker': 'Alice Johnson',
+                'timestamp_ms': 900000,  # 15 minutes into meeting
+                'level': 2,  # L2 episodic
+                'qdrant_id': 'qdrant_mem_001',
+                'dimensions_json': '{"temporal": [0.8, 0.9, 0.2, 0.5], "emotional": [0.3, 0.7, 0.9], "social": [0.9, 0.8, 0.6], "causal": [0.7, 0.5, 0.8], "evolutionary": [0.6, 0.4, 0.7]}',
+                'importance_score': 0.95,
+                'decay_rate': 0.1,
+                'access_count': 0
             },
             {
                 'id': 'mem_002',
                 'content': 'Bob raised concerns about the current database performance under high load conditions.',
-                'memory_type': 'EPISODIC', 
-                'content_type': 'DISCUSSION',
+                'memory_type': 'issue', 
+                'content_type': 'technical',
                 'meeting_id': 'meeting_002',
-                'speaker_id': 'Bob Smith',
-                'confidence': 0.88,
-                'created_at': '2024-01-16 14:30:00',
-                'access_count': 0,
-                'metadata_json': '{"topic": "performance", "urgency": "medium"}'
+                'speaker': 'Bob Smith',
+                'timestamp_ms': 1800000,  # 30 minutes into meeting
+                'level': 2,  # L2 episodic
+                'qdrant_id': 'qdrant_mem_002',
+                'dimensions_json': '{"temporal": [0.6, 0.7, 0.5, 0.3], "emotional": [0.7, 0.6, 0.5], "social": [0.7, 0.6, 0.5], "causal": [0.8, 0.7, 0.6], "evolutionary": [0.5, 0.6, 0.4]}',
+                'importance_score': 0.88,
+                'decay_rate': 0.1,
+                'access_count': 0
             },
             {
                 'id': 'mem_003',
                 'content': 'Action item: Charlie to research serverless architecture options and present findings next week.',
-                'memory_type': 'EPISODIC',
-                'content_type': 'ACTION_ITEM', 
+                'memory_type': 'action',
+                'content_type': 'technical', 
                 'meeting_id': 'meeting_002',
-                'speaker_id': 'Charlie Davis',
-                'confidence': 0.92,
-                'created_at': '2024-01-16 15:00:00',
-                'access_count': 0,
-                'metadata_json': '{"assignee": "Charlie Davis", "due_date": "2024-01-23", "status": "pending"}'
+                'speaker': 'Charlie Davis',
+                'timestamp_ms': 3600000,  # 60 minutes into meeting
+                'level': 2,  # L2 episodic
+                'qdrant_id': 'qdrant_mem_003',
+                'dimensions_json': '{"temporal": [0.9, 0.8, 0.7, 0.9], "emotional": [0.4, 0.6, 0.8], "social": [0.8, 0.7, 0.7], "causal": [0.6, 0.8, 0.7], "evolutionary": [0.7, 0.5, 0.6]}',
+                'importance_score': 0.92,
+                'decay_rate': 0.1,
+                'access_count': 0
             }
         ]
         
         for memory in sample_memories:
             cursor.execute("""
                 INSERT INTO memories (
-                    id, content, memory_type, content_type, meeting_id, 
-                    speaker_id, confidence, created_at, updated_at, 
-                    access_count, last_accessed, metadata_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    id, meeting_id, content, speaker, timestamp_ms,
+                    memory_type, content_type, level, qdrant_id, dimensions_json,
+                    importance_score, decay_rate, access_count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                memory['id'], memory['content'], memory['memory_type'],
-                memory['content_type'], memory['meeting_id'], memory['speaker_id'],
-                memory['confidence'], memory['created_at'], memory['created_at'],
-                memory['access_count'], None, memory['metadata_json']
+                memory['id'], memory['meeting_id'], memory['content'],
+                memory['speaker'], memory['timestamp_ms'], memory['memory_type'],
+                memory['content_type'], memory['level'], memory['qdrant_id'],
+                memory['dimensions_json'], memory['importance_score'],
+                memory['decay_rate'], memory['access_count']
             ))
         
         print(f"  ✓ Inserted {len(sample_memories)} sample memories")
         
-        # TODO: Sample relationships
-        sample_relationships = [
+        # TODO: Sample connections
+        sample_connections = [
             {
-                'memory_id_1': 'mem_001',
-                'memory_id_2': 'mem_003', 
-                'relationship_type': 'RELATED_TO',
-                'strength': 0.75,
-                'created_at': '2024-01-16 15:30:00'
+                'source_id': 'mem_001',
+                'target_id': 'mem_003', 
+                'connection_type': 'causal',
+                'connection_strength': 0.75
             }
         ]
         
-        for rel in sample_relationships:
+        for conn in sample_connections:
             cursor.execute("""
-                INSERT INTO relationships (memory_id_1, memory_id_2, relationship_type, strength, created_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO memory_connections (source_id, target_id, connection_type, connection_strength)
+                VALUES (?, ?, ?, ?)
             """, (
-                rel['memory_id_1'], rel['memory_id_2'], rel['relationship_type'],
-                rel['strength'], rel['created_at']
+                conn['source_id'], conn['target_id'], conn['connection_type'],
+                conn['connection_strength']
             ))
         
-        print(f"  ✓ Inserted {len(sample_relationships)} sample relationships")
+        print(f"  ✓ Inserted {len(sample_connections)} sample connections")
         
         conn.commit()
         
@@ -281,7 +314,7 @@ async def verify_database_setup(db_path: str):
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = [row[0] for row in cursor.fetchall()]
         
-        expected_tables = ['memories', 'relationships', 'meetings']
+        expected_tables = ['memories', 'memory_connections', 'meetings', 'search_history', 'system_metadata']
         missing_tables = set(expected_tables) - set(tables)
         
         if missing_tables:

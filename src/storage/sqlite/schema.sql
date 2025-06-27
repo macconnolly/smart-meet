@@ -88,4 +88,3 @@ CREATE INDEX IF NOT EXISTS idx_search_created_at ON search_history(created_at);
 -- INSERT INTO system_metadata (key, value) VALUES 
 -- ('schema_version', '1.0'),
 -- ('initialized_at', datetime('now'));
-EOF < /dev/null
