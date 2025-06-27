@@ -8,11 +8,29 @@
 - **worktree-day2**: Day 2 implementation (embeddings)
 - **worktree-day3**: Day 3 implementation (dimensions, vector management)
 
+## 🐍 Virtual Environment Setup
+
+### Initial Setup (Run Once)
+```bash
+# Setup venvs for all worktrees
+./setup_worktree_venvs.sh
+```
+
+This creates isolated Python environments for each worktree.
+
+### Activate venv in each worktree
+```bash
+# In any worktree
+cd worktree-tests
+source venv/bin/activate  # or ./activate_venv.sh
+```
+
 ## 🚀 How to Start Claude in Each Worktree
 
 ### 1. Test Worktree (Write ALL Tests First)
 ```bash
 cd worktree-tests
+source venv/bin/activate  # Activate Python environment
 claude code .
 ```
 **Purpose**: Write tests for ALL days following TDD
@@ -24,6 +42,7 @@ claude code .
 ### 2. Day 1 Worktree (Core Models & Database)
 ```bash
 cd worktree-day1
+source venv/bin/activate  # Activate Python environment
 claude code .
 ```
 **Tasks** (IMPL-D1-001 to IMPL-D1-005):
@@ -36,6 +55,7 @@ claude code .
 ### 3. Day 2 Worktree (Embeddings Infrastructure)
 ```bash
 cd worktree-day2
+source venv/bin/activate  # Activate Python environment
 claude code .
 ```
 **Tasks** (IMPL-D2-001 to IMPL-D2-006):
@@ -49,6 +69,7 @@ claude code .
 ### 4. Day 3 Worktree (Dimensions & Vector Management)
 ```bash
 cd worktree-day3
+source venv/bin/activate  # Activate Python environment
 claude code .
 ```
 **Tasks** (IMPL-D3-001 to IMPL-D3-006):

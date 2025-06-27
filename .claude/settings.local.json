@@ -87,7 +87,8 @@
       "Bash(git pull:*)",
       "Bash(git fetch:*)",
       "Bash(./worktree-sync.sh status:*)",
-      "Bash(./worktree-sync.sh:*)"
+      "Bash(./worktree-sync.sh:*)",
+      "Bash(git rm:*)"
     ],
     "deny": []
   }

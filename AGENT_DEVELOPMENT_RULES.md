@@ -23,11 +23,13 @@
 ### 1. Session Start Checklist
 ```bash
 # EVERY session MUST start with:
-1. git worktree list                    # Check active worktrees
-2. git branch --show-current            # Verify correct branch
-3. ls docs/progress/                    # Check latest progress number
-4. mcp__serena__list_memories          # Review workflow memories
-5. TodoWrite([...])                    # Plan session tasks
+1. pwd                                  # Verify you're in correct worktree
+2. source venv/bin/activate            # Activate Python environment
+3. git worktree list                   # Check active worktrees
+4. git branch --show-current           # Verify correct branch
+5. ls docs/progress/                   # Check latest progress number
+6. mcp__serena__list_memories          # Review workflow memories
+7. TodoWrite([...])                    # Plan session tasks
 ```
 
 ### 2. Test-Driven Development (TDD)
@@ -77,26 +79,31 @@ mcp__serena__read_memory progress_update_format
 1. **Main** (`/mnt/c/Users/EL436GA/dev/meet`)
    - Role: Overseer, integration, checklist updates
    - Branch: `main`
+   - Venv: `source venv/bin/activate`
 
 2. **Tests** (`worktree-tests`)
    - Role: Write ALL tests FIRST
    - Branch: `feature/test-implementation`
    - Focus: Unit tests, integration tests, performance tests
+   - Venv: `cd worktree-tests && source venv/bin/activate`
 
-3. **Day 1 Enhance** (`worktree-day1-enhance`)
-   - Role: Fix Day 1 implementation to pass tests
-   - Branch: `feature/day1-enhancements`
+3. **Day 1** (`worktree-day1`)
+   - Role: Implement Day 1 features (models, database)
+   - Branch: `feature/day1-implementation`
    - Focus: Models, database, repositories
+   - Venv: `cd worktree-day1 && source venv/bin/activate`
 
-4. **Next Phase** (`worktree-next-phase`)
-   - Role: Complete Day 3-4 tasks
-   - Branch: `feature/day3-4-completion`
-   - Focus: Missing extractors, repositories
+4. **Day 2** (`worktree-day2`)
+   - Role: Implement Day 2 features (embeddings)
+   - Branch: `feature/day2-implementation`
+   - Focus: ONNX encoder, vector manager
+   - Venv: `cd worktree-day2 && source venv/bin/activate`
 
-5. **Documentation** (`worktree-docs`)
-   - Role: Consolidate and clarify documentation
-   - Branch: `feature/documentation-consolidation`
-   - Focus: Make rules clear for agents
+5. **Day 3** (`worktree-day3`)
+   - Role: Implement Day 3 features (dimensions)
+   - Branch: `feature/day3-implementation`
+   - Focus: Dimension extractors, vector composition
+   - Venv: `cd worktree-day3 && source venv/bin/activate`
 
 ### Worktree Commands:
 ```bash
