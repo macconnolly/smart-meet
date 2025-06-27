@@ -14,15 +14,24 @@ from pydantic import BaseModel, Field
 
 from ..dependencies import get_db_connection, get_vector_store_instance
 from ...models.entities import (
-    Meeting, Memory, Project, MeetingType, ContentType,
-    ProjectType, ProjectStatus, MeetingCategory
+    Meeting,
+    Memory,
+    Project,
+    MeetingType,
+    ContentType,
+    ProjectType,
+    ProjectStatus,
+    MeetingCategory,
 )
 from ...pipeline.ingestion_pipeline import (
-    create_ingestion_pipeline, IngestionResult, PipelineConfig
+    create_ingestion_pipeline,
+    IngestionResult,
+    PipelineConfig,
 )
 from ...storage.sqlite.repositories import (
-    get_meeting_repository, get_memory_repository,
-    get_project_repository
+    get_meeting_repository,
+    get_memory_repository,
+    get_project_repository,
 )
 from ...storage.qdrant.vector_store import SearchFilter, VectorSearchResult
 from ...embedding.onnx_encoder import get_encoder
@@ -35,33 +44,37 @@ router = APIRouter()
 # Request/Response Models
 class ProjectCreate(BaseModel):
     """Request model for creating a project."""
+
     name: str = Field(..., description="Project name")
     client_name: str = Field(..., description="Client name")
     project_type: str = Field(default="other", description="Project type")
     project_manager: Optional[str] = Field(None, description="Project manager name")
     engagement_code: Optional[str] = Field(None, description="Unique engagement code")
-    
+
     class Config:
         schema_extra = {
             "example": {
                 "name": "Digital Transformation Strategy",
                 "client_name": "Acme Corp",
                 "project_type": "transformation",
-                "project_manager": "John Smith"
+                "project_manager": "John Smith",
             }
         }
 
 
 class MeetingIngest(BaseModel):
     """Request model for ingesting a meeting."""
+
     project_id: str = Field(..., description="Project ID")
     title: str = Field(..., description="Meeting title")
     meeting_type: str = Field(default="working_session", description="Type of meeting")
     start_time: datetime = Field(..., description="Meeting start time")
     end_time: datetime = Field(..., description="Meeting end time")
-    participants: List[Dict[str, Any]] = Field(default_factory=list, description="Meeting participants")
+    participants: List[Dict[str, Any]] = Field(
+        default_factory=list, description="Meeting participants"
+    )
     transcript: str = Field(..., description="Meeting transcript text")
-    
+
     class Config:
         schema_extra = {
             "example": {
@@ -72,35 +85,37 @@ class MeetingIngest(BaseModel):
                 "end_time": "2024-01-15T10:00:00",
                 "participants": [
                     {"name": "John Smith", "role": "Project Manager"},
-                    {"name": "Jane Doe", "role": "Tech Lead"}
+                    {"name": "Jane Doe", "role": "Tech Lead"},
                 ],
-                "transcript": "John Smith: Let's start with status updates..."
+                "transcript": "John Smith: Let's start with status updates...",
             }
         }
 
 
 class MemorySearch(BaseModel):
     """Request model for searching memories."""
+
     query: str = Field(..., description="Search query")
     project_id: Optional[str] = Field(None, description="Filter by project")
     meeting_id: Optional[str] = Field(None, description="Filter by meeting")
     content_types: Optional[List[str]] = Field(None, description="Filter by content types")
     limit: int = Field(10, ge=1, le=100, description="Maximum results")
     min_score: Optional[float] = Field(None, ge=0, le=1, description="Minimum similarity score")
-    
+
     class Config:
         schema_extra = {
             "example": {
                 "query": "What are the main project risks?",
                 "project_id": "proj-123",
                 "content_types": ["risk", "issue"],
-                "limit": 20
+                "limit": 20,
             }
         }
 
 
 class SearchResult(BaseModel):
     """Response model for search results."""
+
     memory_id: str
     content: str
     speaker: Optional[str]
@@ -109,7 +124,7 @@ class SearchResult(BaseModel):
     content_type: str
     score: float
     created_at: datetime
-    
+
     class Config:
         schema_extra = {
             "example": {
@@ -120,13 +135,14 @@ class SearchResult(BaseModel):
                 "meeting_title": "Risk Assessment Meeting",
                 "content_type": "risk",
                 "score": 0.92,
-                "created_at": "2024-01-15T10:30:00"
+                "created_at": "2024-01-15T10:30:00",
             }
         }
 
 
 class IngestResponse(BaseModel):
     """Response model for ingestion results."""
+
     meeting_id: str
     memories_extracted: int
     memories_stored: int
@@ -139,17 +155,15 @@ class IngestResponse(BaseModel):
 
 # Endpoints
 
+
 @router.post("/projects", status_code=201)
-async def create_project(
-    project: ProjectCreate,
-    db=Depends(get_db_connection)
-) -> Dict[str, Any]:
+async def create_project(project: ProjectCreate, db=Depends(get_db_connection)) -> Dict[str, Any]:
     """
     Create a new project.
-    
+
     Args:
         project: Project creation data
-        
+
     Returns:
         Created project details
     """
@@ -162,23 +176,23 @@ async def create_project(
             project_manager=project.project_manager,
             engagement_code=project.engagement_code,
             status=ProjectStatus.ACTIVE,
-            start_date=datetime.now()
+            start_date=datetime.now(),
         )
-        
+
         # Save to database
         project_repo = get_project_repository(db)
         project_id = await project_repo.create(project_entity)
-        
+
         logger.info(f"Created project {project_id}: {project.name}")
-        
+
         return {
             "project_id": project_id,
             "name": project.name,
             "client_name": project.client_name,
             "status": "active",
-            "created_at": project_entity.created_at
+            "created_at": project_entity.created_at,
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to create project: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create project: {str(e)}")
@@ -188,21 +202,21 @@ async def create_project(
 async def ingest_meeting(
     meeting_data: MeetingIngest,
     db=Depends(get_db_connection),
-    vector_store=Depends(get_vector_store_instance)
+    vector_store=Depends(get_vector_store_instance),
 ) -> IngestResponse:
     """
     Ingest a meeting transcript.
-    
+
     This endpoint processes a meeting transcript through the full pipeline:
     1. Extract memories
     2. Generate embeddings
     3. Extract dimensions
     4. Store in database and vector store
     5. Create connections
-    
+
     Args:
         meeting_data: Meeting information and transcript
-        
+
     Returns:
         Ingestion results with statistics
     """
@@ -211,36 +225,40 @@ async def ingest_meeting(
         project_repo = get_project_repository(db)
         project = await project_repo.get_by_id(meeting_data.project_id)
         if not project:
-            raise HTTPException(status_code=404, detail=f"Project {meeting_data.project_id} not found")
-        
+            raise HTTPException(
+                status_code=404, detail=f"Project {meeting_data.project_id} not found"
+            )
+
         # Create meeting entity
         meeting = Meeting(
             project_id=meeting_data.project_id,
             title=meeting_data.title,
             meeting_type=MeetingType(meeting_data.meeting_type),
             meeting_category=(
-                MeetingCategory.EXTERNAL 
-                if meeting_data.meeting_type.startswith("client_") 
+                MeetingCategory.EXTERNAL
+                if meeting_data.meeting_type.startswith("client_")
                 else MeetingCategory.INTERNAL
             ),
             start_time=meeting_data.start_time,
             end_time=meeting_data.end_time,
             participants=meeting_data.participants,
-            transcript_path="inline"  # Transcript provided inline
+            transcript_path="inline",  # Transcript provided inline
         )
-        
+
         # Save meeting
         meeting_repo = get_meeting_repository(db)
         meeting_id = await meeting_repo.create(meeting)
         meeting.id = meeting_id
-        
+
         # Create and run pipeline
         pipeline_config = PipelineConfig()
-        pipeline = await create_ingestion_pipeline(db, vector_store.client.host, vector_store.client.port, pipeline_config)
-        
+        pipeline = await create_ingestion_pipeline(
+            db, vector_store.client.host, vector_store.client.port, pipeline_config
+        )
+
         # Ingest the meeting
         result = await pipeline.ingest_meeting(meeting, meeting_data.transcript)
-        
+
         # Determine status
         if result.errors:
             status = "failed"
@@ -248,14 +266,14 @@ async def ingest_meeting(
             status = "completed_with_warnings"
         else:
             status = "success"
-        
+
         logger.info(
             f"Ingested meeting {meeting_id}: "
             f"{result.memories_extracted} extracted, "
             f"{result.memories_stored} stored, "
             f"{result.processing_time_ms:.0f}ms"
         )
-        
+
         return IngestResponse(
             meeting_id=result.meeting_id,
             memories_extracted=result.memories_extracted,
@@ -264,9 +282,9 @@ async def ingest_meeting(
             processing_time_ms=result.processing_time_ms,
             status=status,
             errors=result.errors,
-            warnings=result.warnings
+            warnings=result.warnings,
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -278,17 +296,17 @@ async def ingest_meeting(
 async def search_memories(
     search_request: MemorySearch,
     db=Depends(get_db_connection),
-    vector_store=Depends(get_vector_store_instance)
+    vector_store=Depends(get_vector_store_instance),
 ) -> List[SearchResult]:
     """
     Search memories using vector similarity.
-    
+
     This endpoint performs semantic search across memories using
     the embedded vectors and optional filters.
-    
+
     Args:
         search_request: Search parameters
-        
+
     Returns:
         List of matching memories with similarity scores
     """
@@ -296,101 +314,101 @@ async def search_memories(
         # Generate query embedding
         encoder = get_encoder()
         query_embedding = encoder.encode(search_request.query, normalize=True)
-        
+
         # Create default dimensions (0.5 for all)
         import numpy as np
+
         default_dimensions = np.full(16, 0.5)
-        
+
         # Compose query vector
         vector_manager = get_vector_manager()
         query_vector = vector_manager.compose_vector(query_embedding, default_dimensions)
-        
+
         # Create search filter
         search_filter = SearchFilter(
             project_id=search_request.project_id,
             meeting_id=search_request.meeting_id,
-            content_type=search_request.content_types[0] if search_request.content_types else None
+            content_type=search_request.content_types[0] if search_request.content_types else None,
         )
-        
+
         # Search across all levels
         all_results = await vector_store.search_all_levels(
             query_vector=query_vector,
             limit_per_level=search_request.limit,
             filters=search_filter,
-            score_threshold=search_request.min_score
+            score_threshold=search_request.min_score,
         )
-        
+
         # Combine results from all levels
         combined_results = []
         for level_results in all_results.values():
             combined_results.extend(level_results)
-        
+
         # Sort by score
         combined_results.sort(key=lambda x: x.score, reverse=True)
-        
+
         # Limit results
-        combined_results = combined_results[:search_request.limit]
-        
+        combined_results = combined_results[: search_request.limit]
+
         # Get memory details from database
         memory_repo = get_memory_repository(db)
         meeting_repo = get_meeting_repository(db)
-        
+
         search_results = []
         for result in combined_results:
             # Get memory details
             memory = await memory_repo.get_by_id(result.payload.get("memory_id"))
             if not memory:
                 continue
-            
+
             # Get meeting details
             meeting = await meeting_repo.get_by_id(memory.meeting_id)
-            
-            search_results.append(SearchResult(
-                memory_id=memory.id,
-                content=memory.content,
-                speaker=memory.speaker,
-                meeting_id=memory.meeting_id,
-                meeting_title=meeting.title if meeting else "Unknown",
-                content_type=memory.content_type.value,
-                score=result.score,
-                created_at=memory.created_at
-            ))
-        
+
+            search_results.append(
+                SearchResult(
+                    memory_id=memory.id,
+                    content=memory.content,
+                    speaker=memory.speaker,
+                    meeting_id=memory.meeting_id,
+                    meeting_title=meeting.title if meeting else "Unknown",
+                    content_type=memory.content_type.value,
+                    score=result.score,
+                    created_at=memory.created_at,
+                )
+            )
+
         logger.info(f"Search for '{search_request.query}' returned {len(search_results)} results")
-        
+
         return search_results
-        
+
     except Exception as e:
         logger.error(f"Search failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
 @router.get("/memories/{memory_id}")
-async def get_memory(
-    memory_id: str,
-    db=Depends(get_db_connection)
-) -> Dict[str, Any]:
+async def get_memory(memory_id: str, db=Depends(get_db_connection)) -> Dict[str, Any]:
     """
     Get a specific memory by ID.
-    
+
     Args:
         memory_id: Memory ID
-        
+
     Returns:
         Memory details
     """
     try:
         memory_repo = get_memory_repository(db)
         memory = await memory_repo.get_by_id(memory_id)
-        
+
         if not memory:
             raise HTTPException(status_code=404, detail=f"Memory {memory_id} not found")
-        
+
         # Update access tracking
         await memory_repo.update_access_tracking(memory_id)
-        
+
         return memory.to_dict()
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -404,48 +422,45 @@ async def get_project_memories(
     content_type: Optional[str] = Query(None, description="Filter by content type"),
     limit: int = Query(50, ge=1, le=500, description="Maximum results"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
-    db=Depends(get_db_connection)
+    db=Depends(get_db_connection),
 ) -> Dict[str, Any]:
     """
     Get memories for a project.
-    
+
     Args:
         project_id: Project ID
         content_type: Optional content type filter
         limit: Maximum results
         offset: Pagination offset
-        
+
     Returns:
         List of memories with pagination info
     """
     try:
         memory_repo = get_memory_repository(db)
-        
+
         # Get memories
         if content_type:
             memories = await memory_repo.get_by_content_type(
-                ContentType(content_type),
-                project_id=project_id
+                ContentType(content_type), project_id=project_id
             )
             # Apply pagination manually
             total = len(memories)
-            memories = memories[offset:offset + limit]
+            memories = memories[offset : offset + limit]
         else:
             memories = await memory_repo.get_by_project(
-                project_id=project_id,
-                limit=limit,
-                offset=offset
+                project_id=project_id, limit=limit, offset=offset
             )
             # Get total count
             total = await memory_repo.count(f"project_id = '{project_id}'")
-        
+
         return {
             "memories": [m.to_dict() for m in memories],
             "total": total,
             "limit": limit,
-            "offset": offset
+            "offset": offset,
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to get project memories: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get project memories: {str(e)}")
@@ -460,14 +475,14 @@ async def upload_transcript(
     meeting_date: datetime = Form(..., description="Meeting date"),
     duration_minutes: int = Form(..., description="Meeting duration in minutes"),
     db=Depends(get_db_connection),
-    vector_store=Depends(get_vector_store_instance)
+    vector_store=Depends(get_vector_store_instance),
 ) -> IngestResponse:
     """
     Upload and process a transcript file.
-    
+
     Accepts text files containing meeting transcripts and processes
     them through the ingestion pipeline.
-    
+
     Args:
         file: Transcript file (txt format)
         project_id: Project ID
@@ -475,24 +490,22 @@ async def upload_transcript(
         meeting_type: Type of meeting
         meeting_date: When the meeting occurred
         duration_minutes: Meeting duration
-        
+
     Returns:
         Ingestion results
     """
     try:
         # Validate file type
-        if not file.filename.endswith('.txt'):
+        if not file.filename.endswith(".txt"):
             raise HTTPException(status_code=400, detail="Only .txt files are supported")
-        
+
         # Read transcript
         content = await file.read()
-        transcript = content.decode('utf-8')
-        
+        transcript = content.decode("utf-8")
+
         # Create meeting data
-        end_time = meeting_date.replace(
-            minute=meeting_date.minute + duration_minutes
-        )
-        
+        end_time = meeting_date.replace(minute=meeting_date.minute + duration_minutes)
+
         meeting_data = MeetingIngest(
             project_id=project_id,
             title=meeting_title,
@@ -500,12 +513,12 @@ async def upload_transcript(
             start_time=meeting_date,
             end_time=end_time,
             participants=[],  # Would need to extract from transcript
-            transcript=transcript
+            transcript=transcript,
         )
-        
+
         # Process through regular ingestion
         return await ingest_meeting(meeting_data, db, vector_store)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -514,36 +527,33 @@ async def upload_transcript(
 
 
 @router.get("/stats/project/{project_id}")
-async def get_project_statistics(
-    project_id: str,
-    db=Depends(get_db_connection)
-) -> Dict[str, Any]:
+async def get_project_statistics(project_id: str, db=Depends(get_db_connection)) -> Dict[str, Any]:
     """
     Get statistics for a project.
-    
+
     Args:
         project_id: Project ID
-        
+
     Returns:
         Project statistics including memory counts, meeting info, etc.
     """
     try:
         memory_repo = get_memory_repository(db)
         meeting_repo = get_meeting_repository(db)
-        
+
         # Get memory statistics
         memory_stats = await memory_repo.get_memory_statistics(project_id)
-        
+
         # Get meeting statistics
         meeting_stats = await meeting_repo.get_meeting_statistics(project_id)
-        
+
         return {
             "project_id": project_id,
             "memories": memory_stats,
             "meetings": meeting_stats,
-            "generated_at": datetime.now()
+            "generated_at": datetime.now(),
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to get project statistics: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")

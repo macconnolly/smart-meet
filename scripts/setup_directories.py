@@ -34,7 +34,7 @@ directories = [
     "data/qdrant",
     "data/transcripts",
     "config",
-    "docs"
+    "docs",
 ]
 
 # Create directories

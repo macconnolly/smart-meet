@@ -80,15 +80,15 @@ async def main(force_recreate: bool = False, insert_sample_data: bool = True):
 
         print("\n🎉 Database initialization completed successfully!")
         print(f"📍 Database location: {Path(db_path).absolute()}")
-        
+
         # Test basic query
         print("\n🔍 Testing database queries...")
         test_results = await db.execute_query("SELECT COUNT(*) as count FROM memories")
         print(f"   ✓ Memories table contains {test_results[0]['count']} records")
-        
+
         test_results = await db.execute_query("SELECT COUNT(*) as count FROM meetings")
         print(f"   ✓ Meetings table contains {test_results[0]['count']} records")
-        
+
         test_results = await db.execute_query("SELECT COUNT(*) as count FROM projects")
         print(f"   ✓ Projects table contains {test_results[0]['count']} records")
 
@@ -520,15 +520,16 @@ async def insert_sample_data_func(db: DatabaseConnection):
 
 if __name__ == "__main__":
     import argparse
-    
-    parser = argparse.ArgumentParser(description="Initialize Cognitive Meeting Intelligence Database")
+
+    parser = argparse.ArgumentParser(
+        description="Initialize Cognitive Meeting Intelligence Database"
+    )
     parser.add_argument("--force", action="store_true", help="Force recreate database")
     parser.add_argument("--no-sample-data", action="store_true", help="Skip sample data insertion")
-    
+
     args = parser.parse_args()
-    
-    exit_code = asyncio.run(main(
-        force_recreate=args.force,
-        insert_sample_data=not args.no_sample_data
-    ))
+
+    exit_code = asyncio.run(
+        main(force_recreate=args.force, insert_sample_data=not args.no_sample_data)
+    )
     sys.exit(exit_code)
