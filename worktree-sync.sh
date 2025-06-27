@@ -59,7 +59,10 @@ sync_with_main() {
     if [[ -z "$worktree" ]]; then
         print_color "$RED" "Usage: $0 sync <worktree-name>"
         echo "Available worktrees:"
-        ls -d worktree-* 2>/dev/null | sed 's/^/  - /'
+        echo "  - worktree-tests (all tests)"
+        echo "  - worktree-day1 (Day 1: models, database)"
+        echo "  - worktree-day2 (Day 2: embeddings)"
+        echo "  - worktree-day3 (Day 3: dimensions, vector mgmt)"
         return 1
     fi
     
@@ -225,28 +228,33 @@ workflow() {
     print_color "$BLUE" "\n🔄 TDD Workflow Guide"
     echo "===================="
     echo
-    print_color "$YELLOW" "1️⃣  Test Worktree:"
+    print_color "$YELLOW" "1️⃣  Test Worktree (ALL tests):"
     echo "   cd worktree-tests"
     echo "   ./worktree-sync.sh task worktree-tests test 1 001 model-tests"
-    echo "   # Write failing tests"
+    echo "   # Write failing tests for Day 1"
     echo "   git add tests/unit/test_models.py"
     echo "   git commit -m \"test: Add unit tests for Memory model [TEST-D1-001]\""
     echo
-    print_color "$YELLOW" "2️⃣  Share to Implementation:"
-    echo "   ./worktree-sync.sh share worktree-tests worktree-day1-enhance"
+    print_color "$YELLOW" "2️⃣  Share to Day 1 Implementation:"
+    echo "   ./worktree-sync.sh share worktree-tests worktree-day1"
     echo
-    print_color "$YELLOW" "3️⃣  Implementation Worktree:"
-    echo "   cd worktree-day1-enhance"
+    print_color "$YELLOW" "3️⃣  Day 1 Implementation:"
+    echo "   cd worktree-day1"
     echo "   git merge local/test/D1-001-model-tests"
     echo "   # Fix code to pass tests"
     echo "   ./worktree-sync.sh test . tests/unit/test_models.py"
     echo "   git add src/models/entities.py"
-    echo "   git commit -m \"fix: Update Memory model to pass tests [IMPL-D1-001]\""
+    echo "   git commit -m \"feat: Implement Memory model [IMPL-D1-001]\""
     echo
-    print_color "$YELLOW" "4️⃣  Update Main:"
+    print_color "$YELLOW" "4️⃣  Day 2 Implementation:"
+    echo "   cd worktree-day2"
+    echo "   # Work on embeddings after Day 1 is complete"
+    echo "   # ONNX encoder, vector manager, etc."
+    echo
+    print_color "$YELLOW" "5️⃣  Update Main:"
     echo "   cd $MAIN_DIR"
     echo "   git merge feature/test-implementation"
-    echo "   git merge feature/day1-enhancements"
+    echo "   git merge feature/day1-implementation"
     echo "   # Update TASK_COMPLETION_CHECKLIST.md"
     echo
 }
