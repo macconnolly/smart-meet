@@ -1,5 +1,14 @@
 # CLAUDE.md - AI Assistant Context for Cognitive Meeting Intelligence
 
+## 🚨 CRITICAL: READ FIRST
+**👉 [AGENT_DEVELOPMENT_RULES.md](AGENT_DEVELOPMENT_RULES.md) - MANDATORY development process**
+
+### Current State (2025-06-27):
+- ❌ NO TESTS WRITTEN - Development process not followed
+- ❌ Must switch to Test-Driven Development immediately
+- ❌ Use git worktrees for parallel development
+- 🔴 See AGENT_DEVELOPMENT_RULES.md for required process
+
 ## 🧠 Project Overview
 You are working on a **Cognitive Meeting Intelligence System** that transforms meeting transcripts into a queryable memory network using cognitive science principles. The system uses activation spreading and bridge discovery algorithms to find insights.
 
@@ -275,6 +284,11 @@ python -m cProfile -o profile.stats src/api/cognitive_api.py
 3. NEVER store vectors in SQLite (use Qdrant)
 4. ALWAYS validate input data with Pydantic
 5. NEVER expose internal errors to API responses
+6. ALWAYS create task branches before implementing (impl/D{day}-{task})
+7. ALWAYS include task IDs in commit messages [IMPL-D{day}-{task}]
+8. ALWAYS create progress updates in docs/progress/ with sequential numbering
+9. ALWAYS use TodoWrite at the start of implementation sessions
+10. ALWAYS check git status before any commits
 
 ## 📚 Key Files to Understand
 1. `src/models/entities.py` - Core data models
@@ -299,6 +313,30 @@ python -m cProfile -o profile.stats src/api/cognitive_api.py
 <body with details>
 
 Refs: #<task-id>
+```
+
+## 📈 Progress Updates (MANDATORY)
+
+### Progress Documentation Rules
+1. **ALWAYS create progress updates in**: `docs/progress/XXX_description.md`
+2. **ALWAYS use sequential numbering**: Check latest file, use next number
+3. **ALWAYS follow template**: `mcp__serena__read_memory progress_update_format`
+4. **ALWAYS create updates for**:
+   - Starting new phase/milestone
+   - Completing day's objectives
+   - Major architectural decisions
+   - Integration points
+
+### Current Progress Status
+- Latest: `006_day_1_2_implementation_complete.md`
+- Next number: `007`
+
+### Example Progress Update
+```bash
+# Check latest progress file
+ls docs/progress/
+# Create next sequential update
+vim docs/progress/007_cognitive_engine_start.md
 ```
 
 ## 🆘 When Stuck
