@@ -48,3 +48,6 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 EOF < /dev/null
+
+# Git worktrees
+worktree-*/
