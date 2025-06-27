@@ -1,443 +1,602 @@
 """
-Qdrant vector store for high-performance similarity search.
+Qdrant vector store interface for the 3-tier cognitive memory system.
 
-This module handles all vector operations including storage, retrieval,
-and similarity search across the 3-tier hierarchy (L0/L1/L2).
+This module provides the interface for storing and retrieving vectors
+from Qdrant, managing the three-tier hierarchy of memories.
 """
 
-import numpy as np
-from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct
+import logging
+from typing import List, Dict, Any, Optional, Tuple, Union
+from dataclasses import dataclass
+from datetime import datetime
+import uuid
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
-class HierarchicalMemoryStorage:
-    """Enhanced Qdrant storage with Heimdall's optimizations"""
+try:
+    from qdrant_client import QdrantClient
+    from qdrant_client.models import (
+        PointStruct, PointIdsList, SearchRequest,
+        SearchParams, Filter, FieldCondition, MatchValue,
+        Range, DatetimeRange, MatchAny, HasIdCondition,
+        UpdateStatus, ScrollRequest, ScrollResult
+    )
+except ImportError:
+    raise ImportError(
+        "Qdrant client not installed. Please install: pip install qdrant-client"
+    )
+
+from ..models.entities import Memory, Vector
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SearchFilter:
+    """Filters for vector search."""
+    project_id: Optional[str] = None
+    meeting_id: Optional[str] = None
+    memory_type: Optional[str] = None
+    content_type: Optional[str] = None
+    speaker: Optional[str] = None
+    min_importance: Optional[float] = None
+    max_importance: Optional[float] = None
+    created_after: Optional[datetime] = None
+    created_before: Optional[datetime] = None
     
-    def __init__(self, vector_size: int = 400):
-        self.client = QdrantClient()
-        self.vector_size = vector_size
-        self.collection_manager = QdrantCollectionManager(self.client, vector_size)
-        self.search_engine = VectorSearchEngine(self.client, self.collection_manager)
+    def to_qdrant_filter(self) -> Optional[Filter]:
+        """Convert to Qdrant filter format."""
+        conditions = []
         
-        # Initialize 3-tier collections with optimized HNSW
-        self.collections = {
-            0: "cognitive_concepts",     # High quality: m=32, ef=400
-            1: "cognitive_contexts",     # Balanced: m=24, ef=300  
-            2: "cognitive_episodes"      # Fast: m=16, ef=200
-        }
+        if self.project_id:
+            conditions.append(
+                FieldCondition(
+                    key="project_id",
+                    match=MatchValue(value=self.project_id)
+                )
+            )
+        
+        if self.meeting_id:
+            conditions.append(
+                FieldCondition(
+                    key="meeting_id",
+                    match=MatchValue(value=self.meeting_id)
+                )
+            )
+        
+        if self.memory_type:
+            conditions.append(
+                FieldCondition(
+                    key="memory_type",
+                    match=MatchValue(value=self.memory_type)
+                )
+            )
+        
+        if self.content_type:
+            conditions.append(
+                FieldCondition(
+                    key="content_type",
+                    match=MatchValue(value=self.content_type)
+                )
+            )
+        
+        if self.speaker:
+            conditions.append(
+                FieldCondition(
+                    key="speaker",
+                    match=MatchValue(value=self.speaker)
+                )
+            )
+        
+        if self.min_importance is not None or self.max_importance is not None:
+            conditions.append(
+                FieldCondition(
+                    key="importance_score",
+                    range=Range(
+                        gte=self.min_importance,
+                        lte=self.max_importance
+                    )
+                )
+            )
+        
+        if self.created_after or self.created_before:
+            # Convert to timestamps
+            gte = int(self.created_after.timestamp()) if self.created_after else None
+            lte = int(self.created_before.timestamp()) if self.created_before else None
+            
+            conditions.append(
+                FieldCondition(
+                    key="created_at",
+                    range=Range(gte=gte, lte=lte)
+                )
+            )
+        
+        if conditions:
+            return Filter(must=conditions)
+        
+        return None
+
+
+@dataclass
+class VectorSearchResult:
+    """Result from vector search."""
+    memory_id: str
+    score: float
+    vector: Vector
+    payload: Dict[str, Any]
     
-    async def store_vector(self, id: str, vector: np.ndarray, metadata: dict):
-        """Store with automatic tier selection and optimization"""
-        level = metadata.get("hierarchy_level", 2)
-        collection = self.collections[level]
+
+class QdrantVectorStore:
+    """
+    Interface for storing and retrieving vectors from Qdrant.
+    
+    Manages the 3-tier hierarchy:
+    - L0: Cognitive concepts (semantic memories)
+    - L1: Cognitive contexts (consolidated patterns)
+    - L2: Cognitive episodes (raw memories)
+    """
+    
+    # Collection names
+    L0_COLLECTION = "L0_cognitive_concepts"
+    L1_COLLECTION = "L1_cognitive_contexts"
+    L2_COLLECTION = "L2_cognitive_episodes"
+    
+    def __init__(
+        self, 
+        host: str = "localhost",
+        port: int = 6333,
+        api_key: Optional[str] = None,
+        prefer_grpc: bool = False,
+        timeout: int = 30
+    ):
+        """
+        Initialize Qdrant client.
         
-        point = PointStruct(
-            id=id,
-            vector=vector.tolist(),
-            payload=metadata
+        Args:
+            host: Qdrant server host
+            port: Qdrant server port
+            api_key: Optional API key
+            prefer_grpc: Whether to use gRPC (faster)
+            timeout: Operation timeout in seconds
+        """
+        self.client = QdrantClient(
+            host=host,
+            port=port,
+            api_key=api_key,
+            prefer_grpc=prefer_grpc,
+            timeout=timeout
         )
         
-        self.client.upsert(collection_name=collection, points=[point])
-    
-    async def cognitive_search(self, 
-                              query_vector: np.ndarray,
-                              k_per_level: int = 10) -> dict:
-        """Cross-level search with tier-specific optimization"""
-        results = {}
+        # Thread pool for async operations
+        self._executor = ThreadPoolExecutor(max_workers=4)
         
-        for level, collection in self.collections.items():
-            level_results = self.client.search(
-                collection_name=collection,
-                query_vector=query_vector.tolist(),
-                limit=k_per_level,
-                with_payload=True
-            )
-            results[level] = level_results
+        # Cache for collection info
+        self._collection_info_cache = {}
+        
+        # Verify collections exist
+        self._verify_collections()
+    
+    def _verify_collections(self) -> None:
+        """Verify required collections exist."""
+        try:
+            collections = self.client.get_collections().collections
+            collection_names = [col.name for col in collections]
             
-        return results
+            required = [self.L0_COLLECTION, self.L1_COLLECTION, self.L2_COLLECTION]
+            missing = [name for name in required if name not in collection_names]
+            
+            if missing:
+                raise RuntimeError(
+                    f"Missing required collections: {missing}. "
+                    "Run 'python scripts/init_qdrant.py' to initialize."
+                )
+            
+            logger.info("All required Qdrant collections verified")
+            
+        except Exception as e:
+            logger.error(f"Failed to verify Qdrant collections: {e}")
+            raise
     
-
-
-
-
-#   EXAMPLE TO BE COMPLETED @TODO    
-# from abc import ABC, abstractmethod
-# from typing import Dict, List, Optional, Tuple, Union
-# from qdrant_client import AsyncQdrantClient
-# from qdrant_client.http import models
-# import numpy as np
-# import asyncio
-# from datetime import datetime
-
-# from ...models.memory import Memory, Vector, ActivatedMemory
-
-
-# class VectorStore(ABC):
-#     """
-#     @TODO: Implement abstract vector store interface.
+    def _get_collection_for_level(self, level: int) -> str:
+        """Get collection name for memory level."""
+        if level == 0:
+            return self.L0_COLLECTION
+        elif level == 1:
+            return self.L1_COLLECTION
+        elif level == 2:
+            return self.L2_COLLECTION
+        else:
+            raise ValueError(f"Invalid memory level: {level}")
     
-#     AGENTIC EMPOWERMENT: This interface defines how the system performs
-#     similarity search and vector operations. Your design enables
-#     swapping vector databases if needed.
-    
-#     Required methods:
-#     - store_vector: Store memory vector
-#     - search_similar: Find similar memories
-#     - batch_search: Multiple similarity searches
-#     - delete_vector: Remove memory vector
-#     - get_collection_stats: Analytics
-#     """
-    
-#     @abstractmethod
-#     async def store_vector(
-#         self, 
-#         memory_id: str, 
-#         vector: Vector, 
-#         collection: str,
-#         metadata: Dict = None
-#     ) -> bool:
-#         """@TODO: Store vector with metadata"""
-#         pass
-    
-#     @abstractmethod
-#     async def search_similar(
-#         self, 
-#         query_vector: Vector, 
-#         collection: str,
-#         limit: int = 10,
-#         threshold: float = 0.7
-#     ) -> List[Tuple[str, float]]:
-#         """@TODO: Find similar vectors"""
-#         pass
-
-
-# class QdrantVectorStore(VectorStore):
-#     """
-#     @TODO: Implement Qdrant-specific vector operations.
-    
-#     AGENTIC EMPOWERMENT: This is the core of similarity search.
-#     Your implementation determines how quickly and accurately
-#     the system finds related memories.
-    
-#     Key responsibilities:
-#     - 3-tier collection management (L0/L1/L2)
-#     - Vector indexing and search
-#     - Metadata filtering
-#     - Performance optimization
-#     - Connection management
-#     """
-    
-#     def __init__(self, host: str = "localhost", port: int = 6333):
-#         """
-#         @TODO: Initialize Qdrant client and collections.
+    async def store_memory(
+        self, 
+        memory: Memory,
+        vector: Vector
+    ) -> str:
+        """
+        Store a memory with its vector.
         
-#         AGENTIC EMPOWERMENT: Set up the vector database connection
-#         and ensure all collections exist with proper configuration.
-#         """
-#         # TODO: Initialize async client
-#         self.client: Optional[AsyncQdrantClient] = None
-#         self.collections = {
-#             "l0": "cognitive_concepts",    # High-level concepts
-#             "l1": "cognitive_contexts",    # Contextual information  
-#             "l2": "cognitive_episodes"     # Specific episodes
-#         }
-#         # TODO: Initialize client and collections
-#         pass
+        Args:
+            memory: Memory to store
+            vector: Vector representation
+            
+        Returns:
+            Qdrant point ID
+        """
+        # Generate Qdrant ID if not present
+        if not memory.qdrant_id:
+            memory.qdrant_id = str(uuid.uuid4())
+        
+        # Get collection based on memory level
+        collection_name = self._get_collection_for_level(memory.level)
+        
+        # Build payload
+        payload = self._build_payload(memory)
+        
+        # Create point
+        point = PointStruct(
+            id=memory.qdrant_id,
+            vector=vector.full_vector.tolist(),
+            payload=payload
+        )
+        
+        # Store in Qdrant (run in thread pool)
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            self._executor,
+            lambda: self.client.upsert(
+                collection_name=collection_name,
+                points=[point],
+                wait=True
+            )
+        )
+        
+        logger.debug(f"Stored memory {memory.id} in {collection_name}")
+        
+        return memory.qdrant_id
     
-#     async def initialize_collections(self) -> None:
-#         """
-#         @TODO: Create Qdrant collections with proper configuration.
+    async def batch_store_memories(
+        self,
+        memories: List[Memory],
+        vectors: List[Vector]
+    ) -> List[str]:
+        """
+        Store multiple memories efficiently.
         
-#         AGENTIC EMPOWERMENT: Each collection tier serves different
-#         purposes in the cognitive hierarchy. Configure them for
-#         optimal performance:
+        Args:
+            memories: List of memories to store
+            vectors: Corresponding vectors
+            
+        Returns:
+            List of Qdrant point IDs
+        """
+        if len(memories) != len(vectors):
+            raise ValueError("Number of memories and vectors must match")
         
-#         L0 (Concepts): High-level abstractions, fewer vectors
-#         L1 (Contexts): Medium granularity, moderate vectors
-#         L2 (Episodes): Specific details, many vectors
-#         """
-#         # TODO: Create collections with appropriate settings
-#         # Consider: vector size (400D), distance metric, index params
-#         pass
+        # Group by level
+        level_groups: Dict[int, List[Tuple[Memory, Vector]]] = {0: [], 1: [], 2: []}
+        
+        for memory, vector in zip(memories, vectors):
+            level_groups[memory.level].append((memory, vector))
+        
+        # Store each level batch
+        all_ids = []
+        
+        for level, items in level_groups.items():
+            if not items:
+                continue
+            
+            collection_name = self._get_collection_for_level(level)
+            points = []
+            
+            for memory, vector in items:
+                if not memory.qdrant_id:
+                    memory.qdrant_id = str(uuid.uuid4())
+                
+                points.append(
+                    PointStruct(
+                        id=memory.qdrant_id,
+                        vector=vector.full_vector.tolist(),
+                        payload=self._build_payload(memory)
+                    )
+                )
+                all_ids.append(memory.qdrant_id)
+            
+            # Batch upsert
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                self._executor,
+                lambda: self.client.upsert(
+                    collection_name=collection_name,
+                    points=points,
+                    wait=True
+                )
+            )
+            
+            logger.info(f"Stored {len(points)} memories in {collection_name}")
+        
+        return all_ids
     
-#     async def store_vector(
-#         self, 
-#         memory_id: str, 
-#         vector: Vector, 
-#         collection: str,
-#         metadata: Dict = None
-#     ) -> bool:
-#         """
-#         @TODO: Store vector in specified collection.
+    async def search(
+        self,
+        query_vector: Vector,
+        level: int,
+        limit: int = 10,
+        filters: Optional[SearchFilter] = None,
+        score_threshold: Optional[float] = None
+    ) -> List[VectorSearchResult]:
+        """
+        Search for similar vectors in a specific level.
         
-#         AGENTIC EMPOWERMENT: This stores every memory vector for
-#         similarity search. Ensure proper error handling and
-#         metadata management.
-#         """
-#         # TODO: Convert Vector to Qdrant format and store
-#         pass
+        Args:
+            query_vector: Query vector
+            level: Memory level to search
+            limit: Maximum results
+            filters: Optional search filters
+            score_threshold: Minimum similarity score
+            
+        Returns:
+            List of search results
+        """
+        collection_name = self._get_collection_for_level(level)
+        
+        # Build filter
+        qdrant_filter = filters.to_qdrant_filter() if filters else None
+        
+        # Search parameters
+        search_params = SearchParams(
+            hnsw_ef=128,  # Higher ef for better recall
+            exact=False  # Use HNSW index
+        )
+        
+        # Execute search
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(
+            self._executor,
+            lambda: self.client.search(
+                collection_name=collection_name,
+                query_vector=query_vector.full_vector.tolist(),
+                query_filter=qdrant_filter,
+                limit=limit,
+                with_payload=True,
+                with_vectors=True,
+                search_params=search_params,
+                score_threshold=score_threshold
+            )
+        )
+        
+        # Convert results
+        search_results = []
+        for result in results:
+            # Reconstruct vector
+            vector_array = result.vector
+            vector = Vector.from_list(vector_array)
+            
+            search_results.append(
+                VectorSearchResult(
+                    memory_id=result.payload.get("memory_id", result.id),
+                    score=result.score,
+                    vector=vector,
+                    payload=result.payload
+                )
+            )
+        
+        return search_results
     
-#     async def search_similar(
-#         self, 
-#         query_vector: Vector, 
-#         collection: str,
-#         limit: int = 10,
-#         threshold: float = 0.7,
-#         metadata_filter: Dict = None
-#     ) -> List[Tuple[str, float]]:
-#         """
-#         @TODO: Implement similarity search.
+    async def search_all_levels(
+        self,
+        query_vector: Vector,
+        limit_per_level: int = 10,
+        filters: Optional[SearchFilter] = None,
+        score_threshold: Optional[float] = None
+    ) -> Dict[int, List[VectorSearchResult]]:
+        """
+        Search across all memory levels.
         
-#         AGENTIC EMPOWERMENT: This is called by activation spreading
-#         and bridge discovery. Fast, accurate results are critical
-#         for real-time cognitive processing.
-#         """
-#         # TODO: Perform vector search with filtering
-#         pass
+        Args:
+            query_vector: Query vector
+            limit_per_level: Maximum results per level
+            filters: Optional search filters
+            score_threshold: Minimum similarity score
+            
+        Returns:
+            Dictionary mapping level to search results
+        """
+        # Search all levels in parallel
+        tasks = []
+        for level in [0, 1, 2]:
+            task = self.search(
+                query_vector=query_vector,
+                level=level,
+                limit=limit_per_level,
+                filters=filters,
+                score_threshold=score_threshold
+            )
+            tasks.append(task)
+        
+        results = await asyncio.gather(*tasks)
+        
+        return {
+            0: results[0],
+            1: results[1],
+            2: results[2]
+        }
     
-#     async def batch_search(
-#         self, 
-#         query_vectors: List[Vector], 
-#         collection: str,
-#         limit: int = 10
-#     ) -> List[List[Tuple[str, float]]]:
-#         """
-#         @TODO: Implement batch similarity search.
+    async def get_by_id(
+        self,
+        qdrant_id: str,
+        level: int
+    ) -> Optional[Tuple[Vector, Dict[str, Any]]]:
+        """
+        Retrieve a vector by ID.
         
-#         AGENTIC EMPOWERMENT: Used for efficient multi-vector
-#         searches during activation spreading. Optimize for
-#         throughput.
-#         """
-#         # TODO: Batch vector search implementation
-#         pass
+        Args:
+            qdrant_id: Qdrant point ID
+            level: Memory level
+            
+        Returns:
+            Tuple of (vector, payload) or None if not found
+        """
+        collection_name = self._get_collection_for_level(level)
+        
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(
+            self._executor,
+            lambda: self.client.retrieve(
+                collection_name=collection_name,
+                ids=[qdrant_id],
+                with_payload=True,
+                with_vectors=True
+            )
+        )
+        
+        if results:
+            result = results[0]
+            vector = Vector.from_list(result.vector)
+            return vector, result.payload
+        
+        return None
     
-#     async def hybrid_search(
-#         self, 
-#         semantic_vector: np.ndarray,
-#         cognitive_vector: np.ndarray,
-#         collection: str,
-#         semantic_weight: float = 0.8,
-#         cognitive_weight: float = 0.2,
-#         limit: int = 10
-#     ) -> List[Tuple[str, float]]:
-#         """
-#         @TODO: Implement hybrid semantic + cognitive search.
+    async def update_payload(
+        self,
+        qdrant_id: str,
+        level: int,
+        payload_updates: Dict[str, Any]
+    ) -> bool:
+        """
+        Update payload fields for a vector.
         
-#         AGENTIC EMPOWERMENT: This enables sophisticated queries
-#         that consider both semantic similarity and cognitive
-#         dimensions. Balance the weights intelligently.
-#         """
-#         # TODO: Weighted combination search
-#         pass
+        Args:
+            qdrant_id: Qdrant point ID
+            level: Memory level
+            payload_updates: Fields to update
+            
+        Returns:
+            True if successful
+        """
+        collection_name = self._get_collection_for_level(level)
+        
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            self._executor,
+            lambda: self.client.set_payload(
+                collection_name=collection_name,
+                payload=payload_updates,
+                points=[qdrant_id],
+                wait=True
+            )
+        )
+        
+        return result.status == UpdateStatus.COMPLETED
     
-#     async def get_vector(self, memory_id: str, collection: str) -> Optional[Vector]:
-#         """
-#         @TODO: Retrieve stored vector by ID.
+    async def delete(
+        self,
+        qdrant_ids: List[str],
+        level: int
+    ) -> bool:
+        """
+        Delete vectors by ID.
         
-#         AGENTIC EMPOWERMENT: Used for vector arithmetic and
-#         similarity calculations. Ensure efficient retrieval.
-#         """
-#         # TODO: Vector retrieval implementation
-#         pass
+        Args:
+            qdrant_ids: List of Qdrant point IDs
+            level: Memory level
+            
+        Returns:
+            True if successful
+        """
+        if not qdrant_ids:
+            return True
+        
+        collection_name = self._get_collection_for_level(level)
+        
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            self._executor,
+            lambda: self.client.delete(
+                collection_name=collection_name,
+                points_selector=PointIdsList(points=qdrant_ids),
+                wait=True
+            )
+        )
+        
+        return result.status == UpdateStatus.COMPLETED
     
-#     async def delete_vector(self, memory_id: str, collection: str) -> bool:
-#         """
-#         @TODO: Remove vector from collection.
+    async def get_collection_stats(self, level: int) -> Dict[str, Any]:
+        """
+        Get statistics for a collection.
         
-#         AGENTIC EMPOWERMENT: Used during memory cleanup and
-#         consolidation. Ensure proper cleanup.
-#         """
-#         # TODO: Vector deletion implementation
-#         pass
+        Args:
+            level: Memory level
+            
+        Returns:
+            Collection statistics
+        """
+        collection_name = self._get_collection_for_level(level)
+        
+        loop = asyncio.get_event_loop()
+        info = await loop.run_in_executor(
+            self._executor,
+            lambda: self.client.get_collection(collection_name)
+        )
+        
+        return {
+            "vectors_count": info.vectors_count,
+            "indexed_vectors_count": info.indexed_vectors_count,
+            "points_count": info.points_count,
+            "segments_count": info.segments_count,
+            "status": str(info.status),
+            "optimizer_status": str(info.optimizer_status) if info.optimizer_status else None,
+        }
     
-#     async def update_vector(
-#         self, 
-#         memory_id: str, 
-#         vector: Vector, 
-#         collection: str
-#     ) -> bool:
-#         """
-#         @TODO: Update existing vector.
+    def _build_payload(self, memory: Memory) -> Dict[str, Any]:
+        """Build Qdrant payload from memory."""
+        payload = {
+            "memory_id": memory.id,
+            "project_id": memory.project_id,
+            "meeting_id": memory.meeting_id,
+            "memory_type": memory.memory_type.value,
+            "content_type": memory.content_type.value,
+            "importance_score": memory.importance_score,
+            "created_at": int(memory.created_at.timestamp()),
+        }
         
-#         AGENTIC EMPOWERMENT: Used when memory vectors change
-#         due to decay or boosting. Maintain search index integrity.
-#         """
-#         # TODO: Vector update implementation
-#         pass
+        # Add optional fields
+        if memory.speaker:
+            payload["speaker"] = memory.speaker
+        
+        if memory.timestamp_ms:
+            payload["timestamp"] = memory.timestamp_ms / 1000.0
+        
+        # Level-specific fields
+        if memory.level == 1:  # L1 contexts
+            # Could add source_count for consolidated memories
+            pass
+        
+        return payload
     
-#     async def move_vector(
-#         self, 
-#         memory_id: str, 
-#         from_collection: str, 
-#         to_collection: str
-#     ) -> bool:
-#         """
-#         @TODO: Move vector between collections.
-        
-#         AGENTIC EMPOWERMENT: Used during consolidation when
-#         episodic memories (L2) become semantic memories (L0/L1).
-#         Ensure atomicity.
-#         """
-#         # TODO: Cross-collection vector movement
-#         pass
+    async def close(self) -> None:
+        """Close the vector store and cleanup resources."""
+        self._executor.shutdown(wait=True)
+        logger.info("Qdrant vector store closed")
 
 
-# class HierarchicalVectorManager:
-#     """
-#     @TODO: Manage vectors across the 3-tier hierarchy.
-    
-#     AGENTIC EMPOWERMENT: This orchestrates vector operations
-#     across L0/L1/L2 collections. Your design determines how
-#     memories flow through the cognitive hierarchy.
-    
-#     Responsibilities:
-#     - Route vectors to appropriate tiers
-#     - Cross-tier similarity search
-#     - Hierarchical consolidation
-#     - Performance optimization
-#     """
-    
-#     def __init__(self, vector_store: QdrantVectorStore):
-#         # TODO: Initialize with vector store
-#         pass
-    
-#     async def store_memory_vector(self, memory: Memory) -> None:
-#         """
-#         @TODO: Store vector in appropriate tier based on memory type.
-        
-#         AGENTIC EMPOWERMENT: Route memories to the right level:
-#         - L0: Semantic memories, high-level concepts
-#         - L1: Contextual memories, themes
-#         - L2: Episodic memories, specific events
-#         """
-#         # TODO: Tier routing logic
-#         pass
-    
-#     async def hierarchical_search(
-#         self, 
-#         query_vector: Vector,
-#         search_strategy: str = "bottom_up",
-#         max_results: int = 50
-#     ) -> List[ActivatedMemory]:
-#         """
-#         @TODO: Search across all tiers with intelligent strategy.
-        
-#         AGENTIC EMPOWERMENT: Different search strategies for
-#         different query types:
-#         - bottom_up: Start with specific (L2), expand to general
-#         - top_down: Start with concepts (L0), drill to specifics
-#         - parallel: Search all tiers simultaneously
-#         """
-#         # TODO: Multi-tier search implementation
-#         pass
-    
-#     async def promote_vector(
-#         self, 
-#         memory_id: str, 
-#         from_tier: str, 
-#         to_tier: str
-#     ) -> bool:
-#         """
-#         @TODO: Promote vector during consolidation.
-        
-#         AGENTIC EMPOWERMENT: Move memories up the hierarchy
-#         as they become more abstracted and important.
-#         """
-#         # TODO: Vector promotion logic
-#         pass
+# Singleton instance
+_vector_store_instance: Optional[QdrantVectorStore] = None
 
 
-# class VectorAnalytics:
-#     """
-#     @TODO: Analytics and insights for vector operations.
+def get_vector_store(
+    host: str = "localhost",
+    port: int = 6333,
+    api_key: Optional[str] = None
+) -> QdrantVectorStore:
+    """Get or create the global vector store instance."""
+    global _vector_store_instance
     
-#     AGENTIC EMPOWERMENT: Understand system performance and
-#     vector distribution. Enable optimization and monitoring.
-#     """
+    if _vector_store_instance is None:
+        _vector_store_instance = QdrantVectorStore(
+            host=host,
+            port=port,
+            api_key=api_key
+        )
     
-#     def __init__(self, vector_store: QdrantVectorStore):
-#         # TODO: Initialize analytics
-#         pass
-    
-#     async def get_collection_stats(self, collection: str) -> Dict:
-#         """
-#         @TODO: Collection statistics and health metrics.
-        
-#         Metrics to track:
-#         - Vector count
-#         - Average similarity scores
-#         - Search performance
-#         - Memory distribution
-#         """
-#         # TODO: Stats implementation
-#         pass
-    
-#     async def analyze_vector_clusters(self, collection: str) -> Dict:
-#         """
-#         @TODO: Identify natural clusters in vector space.
-        
-#         AGENTIC EMPOWERMENT: Find natural groupings that could
-#         inform consolidation strategies.
-#         """
-#         # TODO: Clustering analysis
-#         pass
-    
-#     async def search_performance_metrics(self) -> Dict:
-#         """
-#         @TODO: Search latency and throughput metrics.
-        
-#         AGENTIC EMPOWERMENT: Monitor system performance to
-#         ensure <2s query latency requirements.
-#         """
-#         # TODO: Performance metrics
-#         pass
-
-
-# # @TODO: Vector utilities
-# def normalize_vector(vector: np.ndarray) -> np.ndarray:
-#     """
-#     @TODO: Normalize vector for consistent similarity calculations.
-    
-#     AGENTIC EMPOWERMENT: Proper normalization ensures fair
-#     comparison between different vector types and magnitudes.
-#     """
-#     pass
-
-
-# def combine_vectors(
-#     semantic: np.ndarray, 
-#     cognitive: np.ndarray,
-#     semantic_weight: float = 0.8,
-#     cognitive_weight: float = 0.2
-# ) -> np.ndarray:
-#     """
-#     @TODO: Intelligently combine semantic and cognitive vectors.
-    
-#     AGENTIC EMPOWERMENT: The combination strategy affects
-#     all similarity calculations. Balance semantic understanding
-#     with cognitive insights.
-#     """
-#     pass
-
-
-# async def benchmark_search_performance(
-#     vector_store: QdrantVectorStore,
-#     num_queries: int = 100
-# ) -> Dict:
-#     """
-#     @TODO: Benchmark vector search performance.
-    
-#     AGENTIC EMPOWERMENT: Regular performance testing ensures
-#     the system meets latency requirements as it scales.
-#     """
-#     pass
-
-
-# # @TODO: Connection management
-# class QdrantConnectionPool:
-#     """
-#     @TODO: Manage Qdrant connections efficiently.
-    
-#     AGENTIC EMPOWERMENT: Proper connection management prevents
-#     resource exhaustion and ensures reliable operations.
-#     """
-#     pass
+    return _vector_store_instance

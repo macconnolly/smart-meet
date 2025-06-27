@@ -283,12 +283,31 @@ python -m cProfile -o profile.stats src/api/cognitive_api.py
 4. `src/extraction/ingestion.py` - Meeting processing
 5. `src/api/cognitive_api.py` - Main API
 
+## 🔀 Git Workflow (MANDATORY)
+
+### Critical Git Rules
+1. **ALWAYS create task branches**: `git checkout -b impl/D2-001-onnx-encoder`
+2. **ALWAYS include task IDs in commits**: `feat: Add feature [IMPL-D2-001]`
+3. **ALWAYS check before committing**: `git status && git diff --staged`
+4. **ALWAYS read**: `mcp__serena__read_memory git_workflow_enforcement`
+5. **NEVER commit without running tests and linters**
+
+### Commit Message Format
+```
+<type>: <description> [<task-id>]
+
+<body with details>
+
+Refs: #<task-id>
+```
+
 ## 🆘 When Stuck
 1. Check the memories: `mcp__serena__list_memories`
-2. Read the roadmap: `docs/roadmap.md`
-3. Review tests for examples
-4. Check similar implementations in codebase
-5. Validate against performance targets
+2. Read git workflow: `mcp__serena__read_memory git_workflow_enforcement`
+3. Read the roadmap: `docs/roadmap.md`
+4. Review tests for examples
+5. Check similar implementations in codebase
+6. Validate against performance targets
 
 ## 🎯 Your Mission
 Help implement and improve this cognitive meeting intelligence system while maintaining high code quality, meeting performance targets, and following established patterns. Focus on making the system genuinely useful for capturing and retrieving meeting insights.

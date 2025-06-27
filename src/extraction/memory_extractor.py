@@ -1,214 +1,538 @@
 """
-Memory extraction from meeting transcripts.
+Memory extractor for processing meeting transcripts.
 
-Reference: IMPLEMENTATION_GUIDE.md - Day 5: Extraction Pipeline
-Extracts 6 types of memories from transcript text.
+This module extracts individual memories from meeting transcripts,
+identifying speakers, classifying content types, and preparing
+memories for the cognitive pipeline.
 """
 
 import re
-from typing import List, Dict, Optional, Tuple
-from datetime import datetime
 import logging
+from typing import List, Dict, Any, Optional, Tuple, Set
+from dataclasses import dataclass
+from datetime import datetime
+import uuid
+from collections import defaultdict
 
-from src.models.entities import Memory, MemoryType, ContentType
+from ..models.entities import Memory, MemoryType, ContentType, Priority
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class ExtractedMemory:
+    """Raw extracted memory before full processing."""
+    content: str
+    speaker: Optional[str]
+    timestamp_ms: int
+    detected_type: ContentType
+    confidence: float
+    metadata: Dict[str, Any]
+
+
 class MemoryExtractor:
     """
-    Extracts structured memories from meeting transcripts.
+    Extracts memories from meeting transcripts.
     
-    TODO Day 5:
-    - [ ] Implement pattern matching for 6 memory types
-    - [ ] Add speaker identification
-    - [ ] Extract timestamps from transcript
-    - [ ] Classify content types
-    - [ ] Target: 10-15 memories/second
+    Features:
+    - Speaker identification
+    - Content type classification
+    - Timestamp extraction
+    - Memory segmentation
+    - Metadata extraction
     """
     
-    # Memory type patterns
-    PATTERNS = {
-        MemoryType.DECISION: [
-            r"(?:we|I|let's)\s+(?:decided?|agreed?|will|should)\s+(?:to\s+)?(.+)",
-            r"(?:the\s+)?decision\s+is\s+(?:to\s+)?(.+)",
-            r"(?:we're|we\s+are)\s+going\s+(?:to|with)\s+(.+)",
+    # Content type patterns
+    CONTENT_PATTERNS = {
+        ContentType.DECISION: [
+            r"(?:we|I|let's)\s+(?:will|should|must|need to|have to|decided to|agree to)",
+            r"(?:decision|decided|agreed|concluded)\s+(?:to|that|on)",
+            r"(?:final|official)\s+(?:decision|answer|position)",
+            r"(?:approved|rejected|selected|chosen)",
         ],
-        MemoryType.ACTION: [
-            r"(?:I'll|I\s+will|you\s+will|[A-Z]\w+\s+will)\s+(.+)",
-            r"(?:need\s+to|have\s+to|must|should)\s+(.+)",
-            r"action\s+item:?\s*(.+)",
+        ContentType.ACTION: [
+            r"(?:I|you|we|they)\s+(?:will|should|must|need to)\s+(?:do|complete|finish|create|build|send|review)",
+            r"action\s+item",
+            r"(?:by|before|until)\s+(?:tomorrow|next|this|end of)",
+            r"(?:assigned to|owner:?|responsible:?)",
         ],
-        MemoryType.IDEA: [
-            r"(?:what\s+if|how\s+about|maybe\s+we\s+could)\s+(.+)",
-            r"(?:idea|suggestion|proposal):?\s*(.+)",
-            r"(?:we\s+could|should\s+consider)\s+(.+)",
+        ContentType.COMMITMENT: [
+            r"(?:I|we)\s+(?:commit|promise|guarantee|ensure|will definitely)",
+            r"(?:commitment|obligation|promise)",
+            r"(?:accountable|responsible)\s+for",
         ],
-        MemoryType.ISSUE: [
-            r"(?:problem|issue|concern|challenge)\s+(?:is|with)\s+(.+)",
-            r"(?:blocked|stuck|struggling)\s+(?:on|with)\s+(.+)",
-            r"(?:risk|threat)\s+(?:of|that)\s+(.+)",
+        ContentType.QUESTION: [
+            r"^(?:what|when|where|who|why|how|can|could|should|would|is|are|do|does)",
+            r"\?$",
+            r"(?:question|wondering|curious|unclear)",
         ],
-        MemoryType.QUESTION: [
-            r"(?:question|wondering|curious)\s+(?:is|about)\s+(.+)\?",
-            r"(?:what|how|why|when|where|who)\s+(.+)\?",
-            r"(?:do|does|did|can|could|should)\s+(.+)\?",
+        ContentType.INSIGHT: [
+            r"(?:realized|discovered|found|learned|understood)\s+that",
+            r"(?:insight|observation|finding|discovery)",
+            r"(?:interesting|important|key|critical)\s+(?:point|aspect|factor)",
+            r"(?:means|implies|suggests|indicates)\s+that",
         ],
-        MemoryType.CONTEXT: [
-            r"(.+)",  # Catch-all for general context
-        ]
+        ContentType.RISK: [
+            r"(?:risk|threat|concern|danger|hazard)",
+            r"(?:might|could|may)\s+(?:fail|break|delay|impact)",
+            r"(?:worried|concerned)\s+(?:about|that)",
+            r"(?:vulnerability|exposure|liability)",
+        ],
+        ContentType.ISSUE: [
+            r"(?:problem|issue|challenge|obstacle|blocker)",
+            r"(?:broken|failed|not working|delayed)",
+            r"(?:stuck|blocked|waiting on)",
+            r"(?:error|bug|defect|failure)",
+        ],
+        ContentType.ASSUMPTION: [
+            r"(?:assume|assuming|presume|suppose)",
+            r"(?:probably|likely|should be|must be)",
+            r"(?:based on|given that|considering)",
+        ],
+        ContentType.HYPOTHESIS: [
+            r"(?:hypothesis|theory|believe that|think that)",
+            r"(?:if.*then|when.*should)",
+            r"(?:predict|expect|anticipate)\s+that",
+        ],
+        ContentType.FINDING: [
+            r"(?:data shows|analysis reveals|report indicates)",
+            r"(?:found that|shows that|demonstrates that)",
+            r"(?:evidence|proof|validation)\s+(?:of|that)",
+        ],
+        ContentType.RECOMMENDATION: [
+            r"(?:recommend|suggest|propose|advise)",
+            r"(?:should|ought to|better to|would be good to)",
+            r"(?:recommendation|suggestion|proposal)",
+        ],
+        ContentType.DEPENDENCY: [
+            r"(?:depends on|dependent on|requires|needs)",
+            r"(?:blocked by|waiting for|contingent on)",
+            r"(?:prerequisite|precondition|requirement)",
+        ],
     }
     
-    # Content type keywords
-    CONTENT_KEYWORDS = {
-        ContentType.TECHNICAL: ["code", "api", "database", "algorithm", "bug", "feature"],
-        ContentType.STRATEGIC: ["strategy", "goal", "objective", "vision", "roadmap"],
-        ContentType.OPERATIONAL: ["process", "workflow", "deployment", "release", "timeline"],
-    }
+    # Speaker pattern
+    SPEAKER_PATTERN = re.compile(r"^([A-Z][A-Za-z\s\-']+):\s*(.+)$")
     
-    def extract_memories(self, transcript: str, meeting_id: str) -> List[Memory]:
+    # Timestamp patterns
+    TIMESTAMP_PATTERNS = [
+        re.compile(r"\[(\d{1,2}):(\d{2}):(\d{2})\]"),  # [HH:MM:SS]
+        re.compile(r"\((\d{1,2}):(\d{2}):(\d{2})\)"),  # (HH:MM:SS)
+        re.compile(r"^(\d{1,2}):(\d{2}):(\d{2})\s+"),  # HH:MM:SS at start
+    ]
+    
+    def __init__(self):
+        """Initialize the memory extractor."""
+        # Compile content patterns
+        self.compiled_patterns = {}
+        for content_type, patterns in self.CONTENT_PATTERNS.items():
+            self.compiled_patterns[content_type] = [
+                re.compile(pattern, re.IGNORECASE) for pattern in patterns
+            ]
+        
+        # Statistics
+        self.extraction_stats = defaultdict(int)
+    
+    def extract_memories(
+        self,
+        transcript: str,
+        meeting_id: str,
+        project_id: str,
+        meeting_metadata: Optional[Dict[str, Any]] = None
+    ) -> List[Memory]:
         """
-        Extract all memories from a transcript.
+        Extract memories from a meeting transcript.
         
         Args:
-            transcript: Full meeting transcript text
+            transcript: Raw transcript text
             meeting_id: ID of the meeting
+            project_id: ID of the project
+            meeting_metadata: Optional meeting metadata
             
         Returns:
             List of extracted Memory objects
-            
-        TODO Day 5:
-        - [ ] Parse transcript into segments
-        - [ ] Extract speaker and timestamp
-        - [ ] Apply pattern matching
-        - [ ] Classify memory and content types
-        - [ ] Create Memory objects
         """
-        memories = []
+        # Reset stats
+        self.extraction_stats.clear()
         
-        # TODO Day 5: Parse transcript segments
-        segments = self._parse_transcript(transcript)
+        # Split into segments
+        segments = self._segment_transcript(transcript)
+        
+        # Extract raw memories
+        raw_memories = []
+        current_speaker = None
+        current_timestamp_ms = 0
         
         for segment in segments:
-            # TODO Day 5: Extract memory from segment
-            memory = self._extract_from_segment(segment, meeting_id)
-            if memory:
-                memories.append(memory)
+            # Try to extract speaker
+            speaker = self._extract_speaker(segment)
+            if speaker:
+                current_speaker = speaker
+                segment = self._remove_speaker_prefix(segment)
+            
+            # Try to extract timestamp
+            timestamp_ms = self._extract_timestamp(segment)
+            if timestamp_ms is not None:
+                current_timestamp_ms = timestamp_ms
+                segment = self._remove_timestamp(segment)
+            
+            # Skip empty segments
+            if not segment.strip():
+                continue
+            
+            # Extract memory
+            raw_memory = self._extract_single_memory(
+                content=segment.strip(),
+                speaker=current_speaker,
+                timestamp_ms=current_timestamp_ms
+            )
+            raw_memories.append(raw_memory)
         
-        logger.info(f"Extracted {len(memories)} memories from transcript")
+        # Convert to Memory objects
+        memories = []
+        for i, raw in enumerate(raw_memories):
+            memory = self._create_memory(
+                raw_memory=raw,
+                meeting_id=meeting_id,
+                project_id=project_id,
+                sequence_number=i,
+                meeting_metadata=meeting_metadata
+            )
+            memories.append(memory)
+            
+            # Update stats
+            self.extraction_stats['total'] += 1
+            self.extraction_stats[raw.detected_type.value] += 1
+        
+        # Log extraction statistics
+        logger.info(
+            f"Extracted {len(memories)} memories from meeting {meeting_id}: "
+            f"{dict(self.extraction_stats)}"
+        )
+        
         return memories
     
-    def _parse_transcript(self, transcript: str) -> List[Dict]:
+    def _segment_transcript(self, transcript: str) -> List[str]:
         """
-        Parse transcript into segments with metadata.
+        Segment transcript into processable chunks.
         
-        TODO Day 5:
-        - [ ] Split by speaker turns
-        - [ ] Extract timestamps
-        - [ ] Handle different transcript formats
-        
-        Returns list of dicts with:
-        - text: segment text
-        - speaker: speaker name
-        - timestamp_ms: timestamp in milliseconds
+        Args:
+            transcript: Raw transcript
+            
+        Returns:
+            List of segments
         """
+        # Split by common delimiters
+        # First, split by double newlines (paragraph breaks)
+        paragraphs = transcript.split('\n\n')
+        
         segments = []
-        
-        # TODO Day 5: Implement transcript parsing
-        # Simple line-by-line for now
-        lines = transcript.strip().split('\n')
-        for i, line in enumerate(lines):
-            if line.strip():
-                segments.append({
-                    'text': line.strip(),
-                    'speaker': 'Unknown',  # TODO: Extract speaker
-                    'timestamp_ms': i * 1000  # TODO: Extract real timestamp
-                })
+        for paragraph in paragraphs:
+            # Then split by sentence-ending punctuation followed by newline
+            lines = paragraph.split('\n')
+            
+            current_segment = []
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # Check if this line starts with a speaker name
+                if self.SPEAKER_PATTERN.match(line):
+                    # Save current segment if any
+                    if current_segment:
+                        segments.append(' '.join(current_segment))
+                        current_segment = []
+                    segments.append(line)
+                else:
+                    # Check if line ends with sentence punctuation
+                    if line.endswith(('.', '!', '?')):
+                        current_segment.append(line)
+                        segments.append(' '.join(current_segment))
+                        current_segment = []
+                    else:
+                        current_segment.append(line)
+            
+            # Don't forget the last segment
+            if current_segment:
+                segments.append(' '.join(current_segment))
         
         return segments
     
-    def _extract_from_segment(self, segment: Dict, meeting_id: str) -> Optional[Memory]:
+    def _extract_speaker(self, text: str) -> Optional[str]:
+        """Extract speaker name from text."""
+        match = self.SPEAKER_PATTERN.match(text)
+        if match:
+            return match.group(1).strip()
+        return None
+    
+    def _remove_speaker_prefix(self, text: str) -> str:
+        """Remove speaker prefix from text."""
+        match = self.SPEAKER_PATTERN.match(text)
+        if match:
+            return match.group(2).strip()
+        return text
+    
+    def _extract_timestamp(self, text: str) -> Optional[int]:
+        """Extract timestamp from text and convert to milliseconds."""
+        for pattern in self.TIMESTAMP_PATTERNS:
+            match = pattern.search(text)
+            if match:
+                hours = int(match.group(1))
+                minutes = int(match.group(2))
+                seconds = int(match.group(3))
+                
+                # Convert to milliseconds
+                total_ms = (hours * 3600 + minutes * 60 + seconds) * 1000
+                return total_ms
+        
+        return None
+    
+    def _remove_timestamp(self, text: str) -> str:
+        """Remove timestamp from text."""
+        for pattern in self.TIMESTAMP_PATTERNS:
+            text = pattern.sub('', text)
+        return text.strip()
+    
+    def _extract_single_memory(
+        self,
+        content: str,
+        speaker: Optional[str],
+        timestamp_ms: int
+    ) -> ExtractedMemory:
         """
-        Extract a memory from a transcript segment.
+        Extract a single memory from content.
         
-        TODO Day 5:
-        - [ ] Apply pattern matching
-        - [ ] Determine memory type
-        - [ ] Classify content type
-        - [ ] Calculate importance score
+        Args:
+            content: Memory content
+            speaker: Speaker name
+            timestamp_ms: Timestamp in milliseconds
+            
+        Returns:
+            ExtractedMemory object
         """
-        text = segment['text']
+        # Classify content type
+        detected_type, confidence = self._classify_content_type(content)
         
-        # TODO Day 5: Try each memory type pattern
-        memory_type = MemoryType.CONTEXT
-        content = text
+        # Extract any metadata
+        metadata = self._extract_metadata(content)
         
-        for mem_type, patterns in self.PATTERNS.items():
-            for pattern in patterns:
-                match = re.search(pattern, text, re.IGNORECASE)
-                if match and mem_type != MemoryType.CONTEXT:
-                    memory_type = mem_type
-                    content = match.group(1) if match.groups() else text
-                    break
-            if memory_type != MemoryType.CONTEXT:
-                break
-        
-        # TODO Day 5: Classify content type
-        content_type = self._classify_content_type(content)
-        
-        # TODO Day 5: Calculate importance score
-        importance = self._calculate_importance(memory_type, content)
-        
-        return Memory(
-            meeting_id=meeting_id,
+        return ExtractedMemory(
             content=content,
-            speaker=segment['speaker'],
-            timestamp_ms=segment['timestamp_ms'],
-            memory_type=memory_type,
-            content_type=content_type,
-            importance_score=importance
+            speaker=speaker,
+            timestamp_ms=timestamp_ms,
+            detected_type=detected_type,
+            confidence=confidence,
+            metadata=metadata
         )
     
-    def _classify_content_type(self, text: str) -> ContentType:
+    def _classify_content_type(self, content: str) -> Tuple[ContentType, float]:
         """
-        Classify content type based on keywords.
+        Classify the content type of a memory.
         
-        TODO Day 5:
-        - [ ] Check for keyword matches
-        - [ ] Return most relevant type
+        Args:
+            content: Memory content
+            
+        Returns:
+            Tuple of (ContentType, confidence)
         """
-        text_lower = text.lower()
+        scores = {}
         
-        for content_type, keywords in self.CONTENT_KEYWORDS.items():
-            if any(keyword in text_lower for keyword in keywords):
-                return content_type
+        # Check each content type
+        for content_type, patterns in self.compiled_patterns.items():
+            score = 0.0
+            matches = 0
+            
+            for pattern in patterns:
+                if pattern.search(content):
+                    matches += 1
+                    score += 1.0
+            
+            # Normalize score
+            if patterns:
+                score = score / len(patterns)
+            
+            scores[content_type] = score
         
-        return ContentType.GENERAL
+        # Find best match
+        if scores:
+            best_type = max(scores, key=scores.get)
+            confidence = scores[best_type]
+            
+            # If confidence is too low, default to CONTEXT
+            if confidence < 0.2:
+                return ContentType.CONTEXT, 0.5
+            
+            return best_type, min(confidence * 2, 1.0)  # Scale confidence
+        
+        # Default to CONTEXT
+        return ContentType.CONTEXT, 0.5
     
-    def _calculate_importance(self, memory_type: MemoryType, content: str) -> float:
+    def _extract_metadata(self, content: str) -> Dict[str, Any]:
         """
-        Calculate importance score (0-1).
+        Extract metadata from content.
         
-        TODO Day 5:
-        - [ ] Weight by memory type
-        - [ ] Consider content length
-        - [ ] Apply business rules
+        Args:
+            content: Memory content
+            
+        Returns:
+            Dictionary of metadata
         """
-        # Base scores by type
-        base_scores = {
-            MemoryType.DECISION: 0.9,
-            MemoryType.ACTION: 0.8,
-            MemoryType.ISSUE: 0.7,
-            MemoryType.IDEA: 0.6,
-            MemoryType.QUESTION: 0.5,
-            MemoryType.CONTEXT: 0.3
-        }
+        metadata = {}
         
-        score = base_scores.get(memory_type, 0.5)
+        # Extract mentioned people (simple name detection)
+        # Look for capitalized names
+        name_pattern = re.compile(r'\b([A-Z][a-z]+ [A-Z][a-z]+)\b')
+        names = name_pattern.findall(content)
+        if names:
+            metadata['mentioned_people'] = list(set(names))
         
-        # TODO Day 5: Adjust based on content
-        # Length bonus (longer = more important)
-        if len(content) > 100:
-            score = min(1.0, score + 0.1)
+        # Extract dates
+        date_patterns = [
+            re.compile(r'\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b'),
+            re.compile(r'\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}\b', re.IGNORECASE),
+        ]
         
-        return score
+        dates = []
+        for pattern in date_patterns:
+            dates.extend(pattern.findall(content))
+        
+        if dates:
+            metadata['mentioned_dates'] = dates
+        
+        # Extract numbers/metrics
+        number_pattern = re.compile(r'\b(\d+(?:\.\d+)?%?)\b')
+        numbers = number_pattern.findall(content)
+        if numbers:
+            metadata['metrics'] = numbers
+        
+        # Extract quoted text
+        quote_pattern = re.compile(r'"([^"]+)"')
+        quotes = quote_pattern.findall(content)
+        if quotes:
+            metadata['quotes'] = quotes
+        
+        return metadata
+    
+    def _create_memory(
+        self,
+        raw_memory: ExtractedMemory,
+        meeting_id: str,
+        project_id: str,
+        sequence_number: int,
+        meeting_metadata: Optional[Dict[str, Any]] = None
+    ) -> Memory:
+        """
+        Create a Memory object from extracted data.
+        
+        Args:
+            raw_memory: Extracted memory data
+            meeting_id: Meeting ID
+            project_id: Project ID
+            sequence_number: Position in meeting
+            meeting_metadata: Optional meeting metadata
+            
+        Returns:
+            Memory object
+        """
+        # Determine priority based on content type
+        priority = None
+        if raw_memory.detected_type in [ContentType.DECISION, ContentType.RISK]:
+            priority = Priority.HIGH
+        elif raw_memory.detected_type in [ContentType.ACTION, ContentType.COMMITMENT]:
+            priority = Priority.MEDIUM
+        
+        # Create memory
+        memory = Memory(
+            id=str(uuid.uuid4()),
+            meeting_id=meeting_id,
+            project_id=project_id,
+            content=raw_memory.content,
+            speaker=raw_memory.speaker,
+            timestamp_ms=raw_memory.timestamp_ms,
+            memory_type=MemoryType.EPISODIC,  # All extracted memories are episodic
+            content_type=raw_memory.detected_type,
+            priority=priority,
+            level=2,  # L2 (episodic) by default
+            created_at=datetime.now()
+        )
+        
+        # Add speaker role if available in meeting metadata
+        if meeting_metadata and 'participants' in meeting_metadata:
+            for participant in meeting_metadata['participants']:
+                if participant.get('name') == raw_memory.speaker:
+                    memory.speaker_role = participant.get('role', 'participant')
+                    break
+        
+        return memory
+    
+    def extract_speakers(self, transcript: str) -> List[str]:
+        """
+        Extract unique speakers from transcript.
+        
+        Args:
+            transcript: Raw transcript
+            
+        Returns:
+            List of unique speaker names
+        """
+        speakers = set()
+        
+        for line in transcript.split('\n'):
+            speaker = self._extract_speaker(line)
+            if speaker:
+                speakers.add(speaker)
+        
+        return sorted(list(speakers))
+    
+    def get_extraction_stats(self) -> Dict[str, int]:
+        """Get extraction statistics."""
+        return dict(self.extraction_stats)
+
+
+# Example usage
+if __name__ == "__main__":
+    extractor = MemoryExtractor()
+    
+    # Sample transcript
+    transcript = """
+John Smith: Good morning everyone. Let's start with the project status update.
+
+Sarah Johnson: Thanks John. I wanted to highlight that we've completed the API integration ahead of schedule.
+
+John Smith: That's excellent news! We should celebrate this achievement.
+
+Mike Chen: [00:05:30] I have a concern about the database performance. We might need to optimize our queries.
+
+Sarah Johnson: That's a valid point. I suggest we schedule a technical review session this week.
+
+John Smith: Agreed. Let's make that an action item. Mike, can you lead the performance review by Friday?
+
+Mike Chen: I'll take care of it. I'll also document our findings and recommendations.
+
+John Smith: Perfect. One more thing - we need to decide on the deployment strategy for next month.
+
+Sarah Johnson: I recommend a phased rollout to minimize risk.
+
+John Smith: That makes sense. Let's go with the phased approach. This is our official decision.
+"""
+    
+    # Extract memories
+    memories = extractor.extract_memories(
+        transcript=transcript,
+        meeting_id="meeting-001",
+        project_id="project-001"
+    )
+    
+    # Print results
+    print(f"Extracted {len(memories)} memories:\n")
+    for i, memory in enumerate(memories):
+        print(f"{i+1}. [{memory.content_type.value}] {memory.speaker}: {memory.content}")
+        if memory.priority:
+            print(f"   Priority: {memory.priority.value}")
+        print()
+    
+    # Print statistics
+    print("Extraction statistics:")
+    for content_type, count in extractor.get_extraction_stats().items():
+        print(f"  {content_type}: {count}")

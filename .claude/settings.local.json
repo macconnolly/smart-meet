@@ -76,7 +76,11 @@
       "Bash(python:*)",
       "Bash(PYTHONPATH=/mnt/c/Users/EL436GA/dev/meet venv/bin/python3 scripts/init_qdrant.py)",
       "Bash(find:*)",
-      "Bash(sqlite3:*)"
+      "Bash(sqlite3:*)",
+      "Bash(mypy:*)",
+      "Bash(MYPY_CACHE_DIR=/tmp/mypy_cache mypy src/models/entities.py src/storage/sqlite/connection.py scripts/init_db.py --ignore-missing-imports --no-incremental)",
+      "Bash(curl:*)",
+      "Bash(pip show:*)"
     ],
     "deny": []
   }

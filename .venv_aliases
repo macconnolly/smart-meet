@@ -1,0 +1,66 @@
+#!/bin/bash
+# Virtual Environment Aliases for Cognitive Meeting Intelligence
+
+# Activation aliases
+alias venv='source venv/bin/activate'
+alias activate='source venv/bin/activate'
+alias va='source venv/bin/activate'
+
+# Quick commands when activated
+alias deactivate='deactivate'
+
+# Project-specific commands (assuming venv is activated)
+alias run-api='uvicorn src.api.main:app --reload --port 8000'
+alias run-prod='uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers 4'
+
+# Setup commands
+alias setup-db='python scripts/init_db.py'
+alias setup-qdrant='python scripts/init_qdrant.py'
+alias setup-model='python scripts/setup_model.py'
+alias setup-all='python scripts/setup_all.py'
+
+# Testing shortcuts
+alias test='pytest'
+alias test-cov='pytest --cov=src --cov-report=html'
+alias test-unit='pytest tests/unit/'
+alias test-int='pytest tests/integration/'
+
+# Code quality
+alias format='black src/ tests/ scripts/ --line-length 100'
+alias lint='flake8 src/ tests/ scripts/ --max-line-length 100'
+alias typecheck='mypy src/'
+alias quality='black src/ tests/ scripts/ --line-length 100 && flake8 src/ tests/ scripts/ --max-line-length 100 && mypy src/'
+
+# Docker shortcuts
+alias qdrant-up='docker-compose up -d qdrant'
+alias qdrant-down='docker-compose down'
+alias qdrant-logs='docker-compose logs -f qdrant'
+alias qdrant-status='curl http://localhost:6333/collections'
+
+# Database shortcuts
+alias db='sqlite3 data/cognitive.db'
+alias db-tables='sqlite3 data/cognitive.db ".tables"'
+alias db-count='sqlite3 data/cognitive.db "SELECT COUNT(*) FROM memories;"'
+alias db-verify='python scripts/init_db.py --verify-only'
+
+# Development helpers
+alias clean-pyc='find . -type d -name __pycache__ -exec rm -rf {} + && find . -type f -name "*.pyc" -delete'
+alias pip-freeze='pip freeze > requirements-freeze.txt'
+
+# Git helpers (following project conventions)
+alias gs='git status'
+alias gd='git diff'
+alias gl='git log --oneline -10'
+alias commit-check='git status && git diff --staged'
+
+# Quick navigation
+alias src='cd src'
+alias tests='cd tests'
+alias scripts='cd scripts'
+alias root='cd /mnt/c/Users/EL436GA/dev/meet'
+
+# Environment info
+alias venv-info='which python && python --version && pip list | head -20'
+
+echo "Cognitive Meeting Intelligence aliases loaded!"
+echo "Use 'venv' or 'activate' to activate the virtual environment"

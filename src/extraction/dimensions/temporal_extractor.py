@@ -1,242 +1,383 @@
 """
-Temporal dimension extractor for meeting memories.
+Temporal dimension extractor for cognitive features.
 
-Extracts 4D temporal features:
-1. Urgency (0-1): How urgent/time-sensitive
-2. Deadline proximity (0-1): How close to a deadline
-3. Sequence position (0-1): Position in meeting timeline
-4. Duration relevance (0-1): How long-term vs short-term
+This module extracts 4 temporal dimensions from memory content:
+- Urgency: How time-sensitive the information is
+- Deadline proximity: Closeness to deadlines or due dates
+- Sequence position: Position in meeting or discussion flow
+- Duration relevance: How long the information remains relevant
 """
 
 import re
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
-import numpy as np
 import logging
+from typing import Dict, List, Optional, Tuple
+from datetime import datetime, timedelta
+from dataclasses import dataclass
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
-class TemporalExtractor:
-    """
-    Extracts temporal dimensions from text content.
+@dataclass
+class TemporalFeatures:
+    """Extracted temporal features."""
+    urgency: float  # 0-1: How urgent/time-sensitive
+    deadline_proximity: float  # 0-1: How close to deadline
+    sequence_position: float  # 0-1: Position in sequence
+    duration_relevance: float  # 0-1: Long-term vs short-term relevance
     
-    Uses keyword detection, pattern matching, and contextual analysis
-    to determine temporal characteristics of memories.
+    def to_array(self) -> np.ndarray:
+        """Convert to numpy array."""
+        return np.array([
+            self.urgency,
+            self.deadline_proximity,
+            self.sequence_position,
+            self.duration_relevance
+        ])
+
+
+class TemporalDimensionExtractor:
+    """
+    Extracts temporal dimensions from memory content.
+    
+    Uses keyword matching, pattern recognition, and contextual
+    analysis to determine temporal characteristics.
     """
     
-    # Urgency keywords with scores
+    # Urgency keywords and phrases
     URGENCY_KEYWORDS = {
-        # Critical urgency (0.9-1.0)
-        'urgent': 1.0,
-        'asap': 1.0,
-        'immediately': 1.0,
-        'critical': 0.95,
-        'emergency': 0.95,
-        'today': 0.9,
-        'now': 0.9,
-        
-        # High urgency (0.7-0.9)
-        'tomorrow': 0.8,
-        'soon': 0.75,
-        'quickly': 0.75,
-        'priority': 0.7,
-        'important': 0.7,
-        
-        # Medium urgency (0.5-0.7)
-        'this week': 0.6,
-        'next week': 0.55,
-        'timely': 0.5,
-        
-        # Low urgency (0.2-0.5)
-        'this month': 0.4,
-        'next month': 0.3,
-        'eventually': 0.2,
-        'someday': 0.2
+        "critical": 1.0,
+        "urgent": 0.9,
+        "asap": 0.9,
+        "immediately": 0.9,
+        "right away": 0.9,
+        "time-sensitive": 0.8,
+        "priority": 0.8,
+        "deadline": 0.8,
+        "by eod": 0.8,
+        "by end of day": 0.8,
+        "today": 0.7,
+        "tomorrow": 0.6,
+        "this week": 0.5,
+        "next week": 0.4,
+        "soon": 0.4,
+        "when possible": 0.3,
+        "eventually": 0.2,
+        "someday": 0.1,
+        "no rush": 0.1,
     }
     
     # Deadline patterns
     DEADLINE_PATTERNS = [
-        r'by\s+(\w+\s+\d+)',  # by March 15
-        r'due\s+(\w+\s+\d+)',  # due April 1
-        r'deadline[:\s]+(\w+\s+\d+)',  # deadline: May 20
-        r'before\s+(\w+\s+\d+)',  # before June 30
-        r'no later than\s+(\w+\s+\d+)',  # no later than July 15
+        (r"by\s+(\w+\s+\d{1,2})", "date"),  # by January 15
+        (r"by\s+(\d{1,2}/\d{1,2})", "date"),  # by 1/15
+        (r"due\s+(\w+\s+\d{1,2})", "date"),  # due March 1
+        (r"deadline[:\s]+(\w+\s+\d{1,2})", "date"),  # deadline: April 20
+        (r"by\s+(\w+day)", "weekday"),  # by Friday
+        (r"by\s+next\s+(\w+day)", "next_weekday"),  # by next Monday
+        (r"within\s+(\d+)\s+days?", "days"),  # within 3 days
+        (r"within\s+(\d+)\s+weeks?", "weeks"),  # within 2 weeks
+        (r"by\s+end\s+of\s+(\w+)", "period"),  # by end of month
     ]
+    
+    # Duration indicators
+    DURATION_KEYWORDS = {
+        # Long-term relevance
+        "strategic": 0.9,
+        "long-term": 0.9,
+        "permanent": 0.9,
+        "ongoing": 0.8,
+        "continuous": 0.8,
+        "always": 0.8,
+        "policy": 0.8,
+        "principle": 0.8,
+        "framework": 0.7,
+        "process": 0.7,
+        "standard": 0.7,
+        # Short-term relevance
+        "temporary": 0.3,
+        "interim": 0.3,
+        "quick fix": 0.2,
+        "for now": 0.2,
+        "one-time": 0.2,
+        "ad hoc": 0.2,
+        "this meeting": 0.1,
+        "just today": 0.1,
+    }
     
     def __init__(self):
         """Initialize the temporal extractor."""
-        self.deadline_patterns = [re.compile(p, re.IGNORECASE) for p in self.DEADLINE_PATTERNS]
+        self._compiled_patterns = [
+            (re.compile(pattern, re.IGNORECASE), pattern_type)
+            for pattern, pattern_type in self.DEADLINE_PATTERNS
+        ]
     
     def extract(
         self,
-        text: str,
-        timestamp_ms: int = 0,
-        meeting_duration_ms: int = 3600000  # 1 hour default
-    ) -> np.ndarray:
+        content: str,
+        timestamp_ms: Optional[int] = None,
+        meeting_duration_ms: Optional[int] = None,
+        speaker: Optional[str] = None,
+        content_type: Optional[str] = None
+    ) -> TemporalFeatures:
         """
-        Extract 4D temporal features from text.
+        Extract temporal dimensions from memory content.
         
         Args:
-            text: Input text to analyze
-            timestamp_ms: Timestamp within meeting (milliseconds)
-            meeting_duration_ms: Total meeting duration (milliseconds)
+            content: Memory content text
+            timestamp_ms: When in the meeting this was said
+            meeting_duration_ms: Total meeting duration
+            speaker: Who said this (for authority weighting)
+            content_type: Type of content (decisions may be more urgent)
             
         Returns:
-            4D numpy array with temporal features
+            TemporalFeatures with 4 dimensions
         """
-        # TODO: Extract urgency score
-        urgency = self._extract_urgency(text)
+        # Extract individual features
+        urgency = self._extract_urgency(content, content_type)
+        deadline_proximity = self._extract_deadline_proximity(content)
+        sequence_position = self._extract_sequence_position(
+            timestamp_ms, meeting_duration_ms
+        )
+        duration_relevance = self._extract_duration_relevance(content, content_type)
         
-        # TODO: Extract deadline proximity
-        deadline_proximity = self._extract_deadline_proximity(text)
-        
-        # TODO: Calculate sequence position
-        sequence_position = self._calculate_sequence_position(timestamp_ms, meeting_duration_ms)
-        
-        # TODO: Determine duration relevance
-        duration_relevance = self._extract_duration_relevance(text)
-        
-        # TODO: Compose and return 4D vector
-        return np.array([
-            urgency,
-            deadline_proximity,
-            sequence_position,
-            duration_relevance
-        ], dtype=np.float32)
+        return TemporalFeatures(
+            urgency=urgency,
+            deadline_proximity=deadline_proximity,
+            sequence_position=sequence_position,
+            duration_relevance=duration_relevance
+        )
     
-    def _extract_urgency(self, text: str) -> float:
+    def _extract_urgency(self, content: str, content_type: Optional[str]) -> float:
         """
-        Extract urgency score from text.
+        Extract urgency level from content.
         
-        Args:
-            text: Input text
-            
         Returns:
-            Urgency score between 0 and 1
+            Urgency score 0-1
         """
-        text_lower = text.lower()
+        content_lower = content.lower()
         
-        # TODO: Check for urgency keywords
-        # - Find all matching keywords
-        # - Take maximum score if multiple matches
-        # - Default to 0.3 if no matches
+        # Check for urgency keywords
+        max_urgency = 0.0
+        for keyword, score in self.URGENCY_KEYWORDS.items():
+            if keyword in content_lower:
+                max_urgency = max(max_urgency, score)
         
-        urgency_score = 0.3  # Default neutral urgency
+        # Boost for certain content types
+        if content_type:
+            if content_type in ["action", "commitment", "risk"]:
+                max_urgency = min(1.0, max_urgency * 1.2)
+            elif content_type in ["decision"]:
+                max_urgency = min(1.0, max_urgency * 1.1)
         
-        # TODO: Implement keyword matching
+        # Check for exclamation marks (mild indicator)
+        if "!" in content:
+            max_urgency = min(1.0, max_urgency + 0.1)
         
-        return np.clip(urgency_score, 0.0, 1.0)
+        # Check for all caps words (strong indicator)
+        words = content.split()
+        caps_words = [w for w in words if w.isupper() and len(w) > 2]
+        if len(caps_words) > 0:
+            max_urgency = min(1.0, max_urgency + 0.1 * min(len(caps_words), 3))
+        
+        return max_urgency
     
-    def _extract_deadline_proximity(self, text: str) -> float:
+    def _extract_deadline_proximity(self, content: str) -> float:
         """
-        Extract deadline proximity from text.
+        Extract deadline proximity from content.
         
-        Args:
-            text: Input text
-            
         Returns:
-            Deadline proximity score between 0 and 1
+            Deadline proximity score 0-1 (1 = very close deadline)
         """
-        # TODO: Search for deadline patterns
-        # - Use regex patterns to find dates
-        # - Parse dates and calculate days until deadline
-        # - Convert to proximity score (closer = higher)
+        # Look for deadline patterns
+        for pattern, pattern_type in self._compiled_patterns:
+            match = pattern.search(content)
+            if match:
+                return self._calculate_deadline_score(match.group(1), pattern_type)
         
-        # TODO: Handle relative dates (next week, etc.)
-        
-        # Default: no specific deadline
+        # No explicit deadline found
         return 0.0
     
-    def _calculate_sequence_position(self, timestamp_ms: int, duration_ms: int) -> float:
+    def _calculate_deadline_score(self, deadline_text: str, pattern_type: str) -> float:
         """
-        Calculate position in meeting sequence.
+        Calculate deadline proximity score based on parsed deadline.
         
         Args:
-            timestamp_ms: Current timestamp in meeting
-            duration_ms: Total meeting duration
+            deadline_text: Extracted deadline text
+            pattern_type: Type of deadline pattern
             
         Returns:
-            Position score between 0 (start) and 1 (end)
+            Score 0-1 based on how close the deadline is
         """
-        # TODO: Handle edge cases
-        # - Zero or negative duration
-        # - Timestamp beyond duration
+        try:
+            current_date = datetime.now()
+            
+            if pattern_type == "days":
+                days = int(deadline_text)
+                # Score based on days: 1 day = 0.9, 7 days = 0.5, 30 days = 0.1
+                return max(0.1, 1.0 - (days / 35))
+            
+            elif pattern_type == "weeks":
+                weeks = int(deadline_text)
+                days = weeks * 7
+                return max(0.1, 1.0 - (days / 35))
+            
+            elif pattern_type == "weekday":
+                # Simple approximation - assume within next 7 days
+                return 0.7
+            
+            elif pattern_type == "next_weekday":
+                # Next week
+                return 0.5
+            
+            elif pattern_type == "period":
+                period = deadline_text.lower()
+                if period in ["day", "today"]:
+                    return 0.9
+                elif period in ["week"]:
+                    return 0.6
+                elif period in ["month"]:
+                    return 0.3
+                elif period in ["quarter"]:
+                    return 0.2
+                elif period in ["year"]:
+                    return 0.1
+            
+            # Default for unrecognized patterns
+            return 0.5
+            
+        except Exception as e:
+            logger.debug(f"Error calculating deadline score: {e}")
+            return 0.5
+    
+    def _extract_sequence_position(
+        self,
+        timestamp_ms: Optional[int],
+        meeting_duration_ms: Optional[int]
+    ) -> float:
+        """
+        Extract sequence position in meeting.
         
-        if duration_ms <= 0:
+        Args:
+            timestamp_ms: When this was said
+            meeting_duration_ms: Total meeting duration
+            
+        Returns:
+            Position score 0-1 (0 = beginning, 1 = end)
+        """
+        if timestamp_ms is None or meeting_duration_ms is None:
+            # Default to middle if no timing info
             return 0.5
         
-        # TODO: Calculate normalized position
-        position = timestamp_ms / duration_ms
-        return np.clip(position, 0.0, 1.0)
+        if meeting_duration_ms <= 0:
+            return 0.5
+        
+        # Calculate relative position
+        position = timestamp_ms / meeting_duration_ms
+        
+        # Clamp to [0, 1]
+        return max(0.0, min(1.0, position))
     
-    def _extract_duration_relevance(self, text: str) -> float:
+    def _extract_duration_relevance(
+        self,
+        content: str,
+        content_type: Optional[str]
+    ) -> float:
         """
-        Extract duration relevance (long-term vs short-term).
+        Extract how long the information remains relevant.
+        
+        Returns:
+            Duration relevance score 0-1 (1 = long-term relevance)
+        """
+        content_lower = content.lower()
+        
+        # Check duration keywords
+        max_score = 0.5  # Default to medium-term
+        
+        for keyword, score in self.DURATION_KEYWORDS.items():
+            if keyword in content_lower:
+                max_score = max(max_score, score)
+        
+        # Adjust based on content type
+        if content_type:
+            if content_type in ["principle", "framework", "policy"]:
+                max_score = max(max_score, 0.8)
+            elif content_type in ["decision", "commitment"]:
+                max_score = max(max_score, 0.7)
+            elif content_type in ["action", "task"]:
+                max_score = min(max_score, 0.5)  # Tasks are usually short-term
+        
+        # Check for future tense (might indicate longer relevance)
+        future_indicators = ["will", "going to", "plan to", "intend to", "strategy"]
+        if any(indicator in content_lower for indicator in future_indicators):
+            max_score = max(max_score, 0.6)
+        
+        return max_score
+    
+    def batch_extract(
+        self,
+        contents: List[str],
+        timestamps_ms: Optional[List[int]] = None,
+        meeting_duration_ms: Optional[int] = None,
+        speakers: Optional[List[str]] = None,
+        content_types: Optional[List[str]] = None
+    ) -> np.ndarray:
+        """
+        Extract temporal features for multiple memories.
         
         Args:
-            text: Input text
+            contents: List of memory contents
+            timestamps_ms: List of timestamps
+            meeting_duration_ms: Meeting duration
+            speakers: List of speakers
+            content_types: List of content types
             
         Returns:
-            Duration relevance score (0=short-term, 1=long-term)
+            Array of shape (n_memories, 4)
         """
-        text_lower = text.lower()
+        n_memories = len(contents)
         
-        # TODO: Define patterns for different time horizons
-        long_term_indicators = [
-            'strategy', 'strategic', 'long-term', 'future', 'vision',
-            'roadmap', 'years', 'annual', 'quarterly'
-        ]
+        # Prepare lists with None if not provided
+        if timestamps_ms is None:
+            timestamps_ms = [None] * n_memories
+        if speakers is None:
+            speakers = [None] * n_memories
+        if content_types is None:
+            content_types = [None] * n_memories
         
-        short_term_indicators = [
-            'today', 'tomorrow', 'immediate', 'quick', 'temporary',
-            'workaround', 'hotfix', 'this week'
-        ]
+        # Extract features
+        features = []
+        for i in range(n_memories):
+            temporal_features = self.extract(
+                content=contents[i],
+                timestamp_ms=timestamps_ms[i],
+                meeting_duration_ms=meeting_duration_ms,
+                speaker=speakers[i],
+                content_type=content_types[i]
+            )
+            features.append(temporal_features.to_array())
         
-        # TODO: Count indicators and calculate score
-        # - More long-term indicators = higher score
-        # - More short-term indicators = lower score
-        # - Balance if both present
-        
-        return 0.5  # Default: medium-term
-    
-    def get_feature_names(self) -> List[str]:
-        """
-        Get names of temporal features.
-        
-        Returns:
-            List of feature names
-        """
-        return [
-            'urgency',
-            'deadline_proximity',
-            'sequence_position',
-            'duration_relevance'
-        ]
+        return np.vstack(features)
 
 
-def test_temporal_extractor():
-    """Test the temporal extractor."""
-    print("Testing TemporalExtractor...")
-    
-    extractor = TemporalExtractor()
+# Example usage and testing
+if __name__ == "__main__":
+    extractor = TemporalDimensionExtractor()
     
     # Test cases
-    test_texts = [
-        "This is urgent and needs to be done immediately!",
-        "We should complete this by March 15",
-        "Let's think about our long-term strategy",
-        "Just a regular discussion point"
+    test_cases = [
+        "This is urgent! We need to complete this by tomorrow.",
+        "Let's establish a long-term strategic framework for the project.",
+        "No rush, but please look into this when you have time.",
+        "Critical: Submit the report by Friday EOD!",
+        "This is our ongoing policy moving forward.",
+        "Quick temporary fix for today's demo.",
     ]
     
-    for text in test_texts:
-        features = extractor.extract(text)
-        print(f"\nText: {text}")
-        print(f"Features: {features}")
-        print(f"Feature names: {extractor.get_feature_names()}")
-    
-    print("\n✅ TemporalExtractor tests completed!")
-
-
-if __name__ == "__main__":
-    test_temporal_extractor()
+    for content in test_cases:
+        features = extractor.extract(content)
+        print(f"\nContent: {content}")
+        print(f"Urgency: {features.urgency:.2f}")
+        print(f"Deadline Proximity: {features.deadline_proximity:.2f}")
+        print(f"Sequence Position: {features.sequence_position:.2f}")
+        print(f"Duration Relevance: {features.duration_relevance:.2f}")

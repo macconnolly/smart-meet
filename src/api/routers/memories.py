@@ -1,508 +1,549 @@
 """
-Memory management API router for Cognitive Meeting Intelligence.
+Memory management API endpoints.
 
-This module provides dedicated endpoints for memory CRUD operations,
-search, and memory-specific analytics.
+This module provides endpoints for ingesting meeting transcripts,
+searching memories, and managing the memory lifecycle.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query, Path
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
-from typing import Dict, List, Optional, Union
-from datetime import datetime, timedelta
 import logging
+from typing import List, Optional, Dict, Any
+from datetime import datetime
 
-from ...models.memory import Memory, MemoryType, ContentType
-from ...storage.sqlite.memory_repository import SQLiteMemoryRepository
-from ...storage.qdrant.vector_store import QdrantVectorStore
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query
+from pydantic import BaseModel, Field
 
-router = APIRouter(prefix="/api/v2/memories", tags=["memories"])
+from ..main import get_db_connection, get_vector_store_instance
+from ...models.entities import (
+    Meeting, Memory, Project, MeetingType, ContentType,
+    ProjectType, ProjectStatus, MeetingCategory
+)
+from ...pipeline.ingestion_pipeline import (
+    create_ingestion_pipeline, IngestionResult, PipelineConfig
+)
+from ...storage.sqlite.repositories import (
+    get_meeting_repository, get_memory_repository,
+    get_project_repository
+)
+from ...storage.qdrant.vector_store import SearchFilter, VectorSearchResult
+from ...embedding.onnx_encoder import get_encoder
+from ...embedding.vector_manager import get_vector_manager
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
 
 
-# @TODO: Request/Response Models
-class MemoryResponse(BaseModel):
-    """
-    @TODO: Memory response model with full details.
+# Request/Response Models
+class ProjectCreate(BaseModel):
+    """Request model for creating a project."""
+    name: str = Field(..., description="Project name")
+    client_name: str = Field(..., description="Client name")
+    project_type: str = Field(default="other", description="Project type")
+    project_manager: Optional[str] = Field(None, description="Project manager name")
+    engagement_code: Optional[str] = Field(None, description="Unique engagement code")
     
-    AGENTIC EMPOWERMENT: Structured response models ensure
-    consistent API behavior and enable auto-documentation.
-    """
-    id: str
-    content: str
-    memory_type: str
-    content_type: str
-    meeting_id: str
-    speaker_id: Optional[str]
-    confidence: float
-    created_at: datetime
-    updated_at: datetime
-    access_count: int
-    last_accessed: Optional[datetime]
-    metadata: Dict
-    # TODO: Add vector information if requested
-
-
-class MemorySearchRequest(BaseModel):
-    """
-    @TODO: Advanced memory search request model.
-    
-    AGENTIC EMPOWERMENT: Flexible search enables powerful
-    memory discovery and analysis capabilities.
-    """
-    query: Optional[str] = Field(None, description="Text search query")
-    memory_type: Optional[MemoryType] = Field(None, description="Filter by memory type")
-    content_type: Optional[ContentType] = Field(None, description="Filter by content type")
-    meeting_id: Optional[str] = Field(None, description="Filter by meeting")
-    speaker_id: Optional[str] = Field(None, description="Filter by speaker")
-    date_range: Optional[Dict] = Field(None, description="Date range filter")
-    confidence_min: Optional[float] = Field(None, description="Minimum confidence score")
-    limit: int = Field(100, description="Maximum results")
-    offset: int = Field(0, description="Results offset")
-    include_vectors: bool = Field(False, description="Include vector data")
-
-
-class MemoryUpdateRequest(BaseModel):
-    """
-    @TODO: Memory update request model.
-    
-    AGENTIC EMPOWERMENT: Controlled updates enable memory
-    correction and enhancement while maintaining integrity.
-    """
-    content: Optional[str] = None
-    confidence: Optional[float] = None
-    metadata: Optional[Dict] = None
-    # TODO: Add validation for updateable fields
-
-
-class MemoryAnalyticsResponse(BaseModel):
-    """
-    @TODO: Memory analytics response model.
-    
-    AGENTIC EMPOWERMENT: Analytics provide insights into
-    memory patterns and system usage.
-    """
-    total_memories: int
-    memory_type_distribution: Dict[str, int]
-    content_type_distribution: Dict[str, int]
-    temporal_distribution: Dict[str, int]
-    access_patterns: Dict[str, int]
-    confidence_distribution: Dict[str, int]
-
-
-# @TODO: Memory CRUD Operations
-@router.post("/", response_model=MemoryResponse, status_code=201)
-async def create_memory(
-    memory_data: Dict,
-    memory_repo: SQLiteMemoryRepository = Depends(get_memory_repository),
-    vector_store: QdrantVectorStore = Depends(get_vector_store)
-):
-    """
-    @TODO: Create new memory with vector storage.
-    
-    AGENTIC EMPOWERMENT: Direct memory creation enables
-    manual memory management and data correction.
-    
-    Process:
-    1. Validate memory data
-    2. Generate vectors if not provided
-    3. Store in SQLite and Qdrant
-    4. Return created memory
-    """
-    try:
-        # TODO: Validate input data
-        # TODO: Create Memory object
-        # TODO: Generate vectors if needed
-        # TODO: Store in both databases
-        # TODO: Return formatted response
-        
-        return MemoryResponse(
-            id="temp_id",
-            content=memory_data.get("content", ""),
-            memory_type="EPISODIC",
-            content_type="DISCUSSION",
-            meeting_id=memory_data.get("meeting_id", ""),
-            speaker_id=memory_data.get("speaker_id"),
-            confidence=memory_data.get("confidence", 0.0),
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
-            access_count=0,
-            last_accessed=None,
-            metadata=memory_data.get("metadata", {})
-        )
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Memory creation failed: {e}")
-
-
-@router.get("/{memory_id}", response_model=MemoryResponse)
-async def get_memory(
-    memory_id: str = Path(..., description="Memory ID"),
-    include_vectors: bool = Query(False, description="Include vector data"),
-    memory_repo: SQLiteMemoryRepository = Depends(get_memory_repository)
-):
-    """
-    @TODO: Retrieve specific memory by ID.
-    
-    AGENTIC EMPOWERMENT: Direct memory access enables
-    detailed examination and debugging.
-    """
-    try:
-        # TODO: Retrieve memory from repository
-        memory = await memory_repo.get_memory(memory_id)
-        
-        if not memory:
-            raise HTTPException(status_code=404, detail="Memory not found")
-        
-        # TODO: Track access for consolidation
-        await memory_repo.track_access(memory_id, "direct_access")
-        
-        # TODO: Format response
-        # TODO: Include vectors if requested
-        
-        return MemoryResponse(
-            # TODO: Map memory object to response model
-        )
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Memory retrieval failed: {e}")
-
-
-@router.put("/{memory_id}", response_model=MemoryResponse)
-async def update_memory(
-    memory_id: str = Path(..., description="Memory ID"),
-    update_data: MemoryUpdateRequest,
-    memory_repo: SQLiteMemoryRepository = Depends(get_memory_repository),
-    vector_store: QdrantVectorStore = Depends(get_vector_store)
-):
-    """
-    @TODO: Update memory content and metadata.
-    
-    AGENTIC EMPOWERMENT: Memory updates enable correction
-    and enhancement while maintaining vector consistency.
-    """
-    try:
-        # TODO: Retrieve existing memory
-        existing_memory = await memory_repo.get_memory(memory_id)
-        
-        if not existing_memory:
-            raise HTTPException(status_code=404, detail="Memory not found")
-        
-        # TODO: Apply updates
-        update_dict = update_data.dict(exclude_unset=True)
-        
-        # TODO: Regenerate vectors if content changed
-        if "content" in update_dict:
-            # TODO: Generate new vectors
-            # TODO: Update vector store
-            pass
-        
-        # TODO: Update repository
-        success = await memory_repo.update_memory(memory_id, update_dict)
-        
-        if not success:
-            raise HTTPException(status_code=500, detail="Update failed")
-        
-        # TODO: Return updated memory
-        updated_memory = await memory_repo.get_memory(memory_id)
-        return MemoryResponse(
-            # TODO: Map updated memory to response
-        )
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Memory update failed: {e}")
-
-
-@router.delete("/{memory_id}")
-async def delete_memory(
-    memory_id: str = Path(..., description="Memory ID"),
-    memory_repo: SQLiteMemoryRepository = Depends(get_memory_repository),
-    vector_store: QdrantVectorStore = Depends(get_vector_store)
-):
-    """
-    @TODO: Delete memory from both storage systems.
-    
-    AGENTIC EMPOWERMENT: Clean deletion ensures data
-    consistency across storage systems.
-    """
-    try:
-        # TODO: Check if memory exists
-        memory = await memory_repo.get_memory(memory_id)
-        
-        if not memory:
-            raise HTTPException(status_code=404, detail="Memory not found")
-        
-        # TODO: Delete from vector store
-        await vector_store.delete_vector(memory_id, "cognitive_episodes")  # TODO: Determine correct collection
-        
-        # TODO: Delete from repository
-        success = await memory_repo.delete_memory(memory_id)
-        
-        if not success:
-            raise HTTPException(status_code=500, detail="Deletion failed")
-        
-        return JSONResponse(
-            status_code=200,
-            content={"message": "Memory deleted successfully", "memory_id": memory_id}
-        )
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Memory deletion failed: {e}")
-
-
-# @TODO: Memory Search and Discovery
-@router.post("/search", response_model=List[MemoryResponse])
-async def search_memories(
-    search_request: MemorySearchRequest,
-    memory_repo: SQLiteMemoryRepository = Depends(get_memory_repository),
-    vector_store: QdrantVectorStore = Depends(get_vector_store)
-):
-    """
-    @TODO: Advanced memory search with multiple filters.
-    
-    AGENTIC EMPOWERMENT: Flexible search enables powerful
-    memory discovery and analysis workflows.
-    """
-    try:
-        # TODO: Build search filters
-        filters = {}
-        if search_request.memory_type:
-            filters['memory_type'] = search_request.memory_type
-        if search_request.content_type:
-            filters['content_type'] = search_request.content_type
-        if search_request.meeting_id:
-            filters['meeting_id'] = search_request.meeting_id
-        if search_request.speaker_id:
-            filters['speaker_id'] = search_request.speaker_id
-        
-        # TODO: Handle date range filter
-        if search_request.date_range:
-            # TODO: Parse and apply date range
-            pass
-        
-        # TODO: Text search using vector similarity if query provided
-        if search_request.query:
-            # TODO: Generate query vector
-            # TODO: Vector similarity search
-            # TODO: Combine with metadata filters
-            pass
-        else:
-            # TODO: Metadata-only search
-            memories = await memory_repo.find_memories(
-                limit=search_request.limit,
-                **filters
-            )
-        
-        # TODO: Apply confidence filter
-        if search_request.confidence_min:
-            memories = [m for m in memories if m.confidence >= search_request.confidence_min]
-        
-        # TODO: Format responses
-        return [
-            MemoryResponse(
-                # TODO: Map memory objects to responses
-            )
-            for memory in memories
-        ]
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {e}")
-
-
-@router.get("/similar/{memory_id}")
-async def find_similar_memories(
-    memory_id: str = Path(..., description="Reference memory ID"),
-    limit: int = Query(10, description="Maximum similar memories"),
-    threshold: float = Query(0.7, description="Similarity threshold"),
-    vector_store: QdrantVectorStore = Depends(get_vector_store),
-    memory_repo: SQLiteMemoryRepository = Depends(get_memory_repository)
-):
-    """
-    @TODO: Find memories similar to a reference memory.
-    
-    AGENTIC EMPOWERMENT: Similarity search enables
-    exploration of related memories and content discovery.
-    """
-    try:
-        # TODO: Get reference memory vector
-        reference_memory = await memory_repo.get_memory(memory_id)
-        
-        if not reference_memory:
-            raise HTTPException(status_code=404, detail="Reference memory not found")
-        
-        # TODO: Vector similarity search
-        similar_results = await vector_store.search_similar(
-            reference_memory.vector,
-            "cognitive_episodes",  # TODO: Determine correct collection
-            limit=limit,
-            threshold=threshold
-        )
-        
-        # TODO: Retrieve full memory objects
-        similar_memories = []
-        for memory_id, similarity_score in similar_results:
-            memory = await memory_repo.get_memory(memory_id)
-            if memory:
-                # TODO: Add similarity score to response
-                similar_memories.append(memory)
-        
-        return similar_memories
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Similarity search failed: {e}")
-
-
-# @TODO: Memory Analytics
-@router.get("/analytics/overview", response_model=MemoryAnalyticsResponse)
-async def get_memory_analytics(
-    time_window: int = Query(30, description="Days to analyze"),
-    memory_repo: SQLiteMemoryRepository = Depends(get_memory_repository)
-):
-    """
-    @TODO: Get comprehensive memory analytics.
-    
-    AGENTIC EMPOWERMENT: Analytics provide insights into
-    memory patterns, usage trends, and system health.
-    """
-    try:
-        # TODO: Calculate analytics
-        stats = await memory_repo.get_memory_stats()
-        
-        # TODO: Time-based analysis
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=time_window)
-        
-        # TODO: Generate comprehensive analytics
-        analytics = MemoryAnalyticsResponse(
-            total_memories=stats.get('total_memories', 0),
-            memory_type_distribution=stats.get('memory_type_distribution', {}),
-            content_type_distribution=stats.get('content_type_distribution', {}),
-            temporal_distribution=stats.get('temporal_distribution', {}),
-            access_patterns=stats.get('access_patterns', {}),
-            confidence_distribution=stats.get('confidence_distribution', {})
-        )
-        
-        return analytics
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Analytics generation failed: {e}")
-
-
-@router.get("/analytics/access-patterns")
-async def get_access_patterns(
-    memory_id: Optional[str] = Query(None, description="Specific memory ID"),
-    time_window: int = Query(7, description="Days to analyze"),
-    memory_repo: SQLiteMemoryRepository = Depends(get_memory_repository)
-):
-    """
-    @TODO: Analyze memory access patterns for consolidation insights.
-    
-    AGENTIC EMPOWERMENT: Access pattern analysis informs
-    consolidation decisions and optimization strategies.
-    """
-    try:
-        # TODO: Analyze access patterns
-        # TODO: Identify consolidation candidates
-        # TODO: Generate recommendations
-        
-        return {
-            "analysis_period": f"{time_window} days",
-            "total_accesses": 0,
-            "top_accessed_memories": [],
-            "consolidation_candidates": [],
-            "access_trends": {}
-        }
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Access pattern analysis failed: {e}")
-
-
-# @TODO: Memory Relationships
-@router.get("/{memory_id}/relationships")
-async def get_memory_relationships(
-    memory_id: str = Path(..., description="Memory ID"),
-    relationship_type: Optional[str] = Query(None, description="Filter by relationship type"),
-    memory_repo: SQLiteMemoryRepository = Depends(get_memory_repository)
-):
-    """
-    @TODO: Get relationships for a specific memory.
-    
-    AGENTIC EMPOWERMENT: Relationship exploration enables
-    understanding of memory connections and context.
-    """
-    try:
-        # TODO: Get related memories
-        related_memories = await memory_repo.get_related_memories(
-            memory_id, relationship_type
-        )
-        
-        # TODO: Format response with relationship metadata
-        return {
-            "memory_id": memory_id,
-            "relationships": [
-                {
-                    "related_memory": memory,
-                    "relationship_type": "TODO",
-                    "strength": 0.0
-                }
-                for memory in related_memories
-            ]
-        }
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Relationship retrieval failed: {e}")
-
-
-@router.post("/{memory_id}/relationships")
-async def create_memory_relationship(
-    memory_id: str = Path(..., description="Source memory ID"),
-    target_memory_id: str,
-    relationship_type: str,
-    strength: float = 1.0,
-    memory_repo: SQLiteMemoryRepository = Depends(get_memory_repository)
-):
-    """
-    @TODO: Create explicit relationship between memories.
-    
-    AGENTIC EMPOWERMENT: Manual relationship creation enables
-    knowledge graph enhancement and context building.
-    """
-    try:
-        # TODO: Validate both memories exist
-        # TODO: Create relationship
-        await memory_repo.create_relationship(
-            memory_id, target_memory_id, relationship_type, strength
-        )
-        
-        return JSONResponse(
-            status_code=201,
-            content={
-                "message": "Relationship created successfully",
-                "source_memory_id": memory_id,
-                "target_memory_id": target_memory_id,
-                "relationship_type": relationship_type
+    class Config:
+        schema_extra = {
+            "example": {
+                "name": "Digital Transformation Strategy",
+                "client_name": "Acme Corp",
+                "project_type": "transformation",
+                "project_manager": "John Smith"
             }
-        )
+        }
+
+
+class MeetingIngest(BaseModel):
+    """Request model for ingesting a meeting."""
+    project_id: str = Field(..., description="Project ID")
+    title: str = Field(..., description="Meeting title")
+    meeting_type: str = Field(default="working_session", description="Type of meeting")
+    start_time: datetime = Field(..., description="Meeting start time")
+    end_time: datetime = Field(..., description="Meeting end time")
+    participants: List[Dict[str, Any]] = Field(default_factory=list, description="Meeting participants")
+    transcript: str = Field(..., description="Meeting transcript text")
     
+    class Config:
+        schema_extra = {
+            "example": {
+                "project_id": "proj-123",
+                "title": "Weekly Project Sync",
+                "meeting_type": "internal_team",
+                "start_time": "2024-01-15T09:00:00",
+                "end_time": "2024-01-15T10:00:00",
+                "participants": [
+                    {"name": "John Smith", "role": "Project Manager"},
+                    {"name": "Jane Doe", "role": "Tech Lead"}
+                ],
+                "transcript": "John Smith: Let's start with status updates..."
+            }
+        }
+
+
+class MemorySearch(BaseModel):
+    """Request model for searching memories."""
+    query: str = Field(..., description="Search query")
+    project_id: Optional[str] = Field(None, description="Filter by project")
+    meeting_id: Optional[str] = Field(None, description="Filter by meeting")
+    content_types: Optional[List[str]] = Field(None, description="Filter by content types")
+    limit: int = Field(10, ge=1, le=100, description="Maximum results")
+    min_score: Optional[float] = Field(None, ge=0, le=1, description="Minimum similarity score")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "query": "What are the main project risks?",
+                "project_id": "proj-123",
+                "content_types": ["risk", "issue"],
+                "limit": 20
+            }
+        }
+
+
+class SearchResult(BaseModel):
+    """Response model for search results."""
+    memory_id: str
+    content: str
+    speaker: Optional[str]
+    meeting_id: str
+    meeting_title: str
+    content_type: str
+    score: float
+    created_at: datetime
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "memory_id": "mem-123",
+                "content": "The main risk is the tight timeline for API integration",
+                "speaker": "John Smith",
+                "meeting_id": "meet-456",
+                "meeting_title": "Risk Assessment Meeting",
+                "content_type": "risk",
+                "score": 0.92,
+                "created_at": "2024-01-15T10:30:00"
+            }
+        }
+
+
+class IngestResponse(BaseModel):
+    """Response model for ingestion results."""
+    meeting_id: str
+    memories_extracted: int
+    memories_stored: int
+    connections_created: int
+    processing_time_ms: float
+    status: str
+    errors: List[str]
+    warnings: List[str]
+
+
+# Endpoints
+
+@router.post("/projects", status_code=201)
+async def create_project(
+    project: ProjectCreate,
+    db=Depends(get_db_connection)
+) -> Dict[str, Any]:
+    """
+    Create a new project.
+    
+    Args:
+        project: Project creation data
+        
+    Returns:
+        Created project details
+    """
+    try:
+        # Create project entity
+        project_entity = Project(
+            name=project.name,
+            client_name=project.client_name,
+            project_type=ProjectType(project.project_type),
+            project_manager=project.project_manager,
+            engagement_code=project.engagement_code,
+            status=ProjectStatus.ACTIVE,
+            start_date=datetime.now()
+        )
+        
+        # Save to database
+        project_repo = get_project_repository(db)
+        project_id = await project_repo.create(project_entity)
+        
+        logger.info(f"Created project {project_id}: {project.name}")
+        
+        return {
+            "project_id": project_id,
+            "name": project.name,
+            "client_name": project.client_name,
+            "status": "active",
+            "created_at": project_entity.created_at
+        }
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Relationship creation failed: {e}")
+        logger.error(f"Failed to create project: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create project: {str(e)}")
 
 
-# @TODO: Dependency injection helpers
-async def get_memory_repository() -> SQLiteMemoryRepository:
-    """@TODO: Get memory repository instance"""
-    # TODO: Initialize and return repository
-    pass
+@router.post("/ingest", response_model=IngestResponse)
+async def ingest_meeting(
+    meeting_data: MeetingIngest,
+    db=Depends(get_db_connection),
+    vector_store=Depends(get_vector_store_instance)
+) -> IngestResponse:
+    """
+    Ingest a meeting transcript.
+    
+    This endpoint processes a meeting transcript through the full pipeline:
+    1. Extract memories
+    2. Generate embeddings
+    3. Extract dimensions
+    4. Store in database and vector store
+    5. Create connections
+    
+    Args:
+        meeting_data: Meeting information and transcript
+        
+    Returns:
+        Ingestion results with statistics
+    """
+    try:
+        # Validate project exists
+        project_repo = get_project_repository(db)
+        project = await project_repo.get_by_id(meeting_data.project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail=f"Project {meeting_data.project_id} not found")
+        
+        # Create meeting entity
+        meeting = Meeting(
+            project_id=meeting_data.project_id,
+            title=meeting_data.title,
+            meeting_type=MeetingType(meeting_data.meeting_type),
+            meeting_category=(
+                MeetingCategory.EXTERNAL 
+                if meeting_data.meeting_type.startswith("client_") 
+                else MeetingCategory.INTERNAL
+            ),
+            start_time=meeting_data.start_time,
+            end_time=meeting_data.end_time,
+            participants=meeting_data.participants,
+            transcript_path="inline"  # Transcript provided inline
+        )
+        
+        # Save meeting
+        meeting_repo = get_meeting_repository(db)
+        meeting_id = await meeting_repo.create(meeting)
+        meeting.id = meeting_id
+        
+        # Create and run pipeline
+        pipeline_config = PipelineConfig()
+        pipeline = await create_ingestion_pipeline(db, vector_store.client.host, vector_store.client.port, pipeline_config)
+        
+        # Ingest the meeting
+        result = await pipeline.ingest_meeting(meeting, meeting_data.transcript)
+        
+        # Determine status
+        if result.errors:
+            status = "failed"
+        elif result.warnings:
+            status = "completed_with_warnings"
+        else:
+            status = "success"
+        
+        logger.info(
+            f"Ingested meeting {meeting_id}: "
+            f"{result.memories_extracted} extracted, "
+            f"{result.memories_stored} stored, "
+            f"{result.processing_time_ms:.0f}ms"
+        )
+        
+        return IngestResponse(
+            meeting_id=result.meeting_id,
+            memories_extracted=result.memories_extracted,
+            memories_stored=result.memories_stored,
+            connections_created=result.connections_created,
+            processing_time_ms=result.processing_time_ms,
+            status=status,
+            errors=result.errors,
+            warnings=result.warnings
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ingestion failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
 
 
-async def get_vector_store() -> QdrantVectorStore:
-    """@TODO: Get vector store instance"""
-    # TODO: Initialize and return vector store  
-    pass
+@router.post("/search", response_model=List[SearchResult])
+async def search_memories(
+    search_request: MemorySearch,
+    db=Depends(get_db_connection),
+    vector_store=Depends(get_vector_store_instance)
+) -> List[SearchResult]:
+    """
+    Search memories using vector similarity.
+    
+    This endpoint performs semantic search across memories using
+    the embedded vectors and optional filters.
+    
+    Args:
+        search_request: Search parameters
+        
+    Returns:
+        List of matching memories with similarity scores
+    """
+    try:
+        # Generate query embedding
+        encoder = get_encoder()
+        query_embedding = encoder.encode(search_request.query, normalize=True)
+        
+        # Create default dimensions (0.5 for all)
+        import numpy as np
+        default_dimensions = np.full(16, 0.5)
+        
+        # Compose query vector
+        vector_manager = get_vector_manager()
+        query_vector = vector_manager.compose_vector(query_embedding, default_dimensions)
+        
+        # Create search filter
+        search_filter = SearchFilter(
+            project_id=search_request.project_id,
+            meeting_id=search_request.meeting_id,
+            content_type=search_request.content_types[0] if search_request.content_types else None
+        )
+        
+        # Search across all levels
+        all_results = await vector_store.search_all_levels(
+            query_vector=query_vector,
+            limit_per_level=search_request.limit,
+            filters=search_filter,
+            score_threshold=search_request.min_score
+        )
+        
+        # Combine results from all levels
+        combined_results = []
+        for level_results in all_results.values():
+            combined_results.extend(level_results)
+        
+        # Sort by score
+        combined_results.sort(key=lambda x: x.score, reverse=True)
+        
+        # Limit results
+        combined_results = combined_results[:search_request.limit]
+        
+        # Get memory details from database
+        memory_repo = get_memory_repository(db)
+        meeting_repo = get_meeting_repository(db)
+        
+        search_results = []
+        for result in combined_results:
+            # Get memory details
+            memory = await memory_repo.get_by_id(result.payload.get("memory_id"))
+            if not memory:
+                continue
+            
+            # Get meeting details
+            meeting = await meeting_repo.get_by_id(memory.meeting_id)
+            
+            search_results.append(SearchResult(
+                memory_id=memory.id,
+                content=memory.content,
+                speaker=memory.speaker,
+                meeting_id=memory.meeting_id,
+                meeting_title=meeting.title if meeting else "Unknown",
+                content_type=memory.content_type.value,
+                score=result.score,
+                created_at=memory.created_at
+            ))
+        
+        logger.info(f"Search for '{search_request.query}' returned {len(search_results)} results")
+        
+        return search_results
+        
+    except Exception as e:
+        logger.error(f"Search failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
+@router.get("/memories/{memory_id}")
+async def get_memory(
+    memory_id: str,
+    db=Depends(get_db_connection)
+) -> Dict[str, Any]:
+    """
+    Get a specific memory by ID.
+    
+    Args:
+        memory_id: Memory ID
+        
+    Returns:
+        Memory details
+    """
+    try:
+        memory_repo = get_memory_repository(db)
+        memory = await memory_repo.get_by_id(memory_id)
+        
+        if not memory:
+            raise HTTPException(status_code=404, detail=f"Memory {memory_id} not found")
+        
+        # Update access tracking
+        await memory_repo.update_access_tracking(memory_id)
+        
+        return memory.to_dict()
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get memory: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get memory: {str(e)}")
+
+
+@router.get("/projects/{project_id}/memories")
+async def get_project_memories(
+    project_id: str,
+    content_type: Optional[str] = Query(None, description="Filter by content type"),
+    limit: int = Query(50, ge=1, le=500, description="Maximum results"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    db=Depends(get_db_connection)
+) -> Dict[str, Any]:
+    """
+    Get memories for a project.
+    
+    Args:
+        project_id: Project ID
+        content_type: Optional content type filter
+        limit: Maximum results
+        offset: Pagination offset
+        
+    Returns:
+        List of memories with pagination info
+    """
+    try:
+        memory_repo = get_memory_repository(db)
+        
+        # Get memories
+        if content_type:
+            memories = await memory_repo.get_by_content_type(
+                ContentType(content_type),
+                project_id=project_id
+            )
+            # Apply pagination manually
+            total = len(memories)
+            memories = memories[offset:offset + limit]
+        else:
+            memories = await memory_repo.get_by_project(
+                project_id=project_id,
+                limit=limit,
+                offset=offset
+            )
+            # Get total count
+            total = await memory_repo.count(f"project_id = '{project_id}'")
+        
+        return {
+            "memories": [m.to_dict() for m in memories],
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get project memories: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get project memories: {str(e)}")
+
+
+@router.post("/upload-transcript")
+async def upload_transcript(
+    file: UploadFile = File(..., description="Transcript file"),
+    project_id: str = Form(..., description="Project ID"),
+    meeting_title: str = Form(..., description="Meeting title"),
+    meeting_type: str = Form("working_session", description="Meeting type"),
+    meeting_date: datetime = Form(..., description="Meeting date"),
+    duration_minutes: int = Form(..., description="Meeting duration in minutes"),
+    db=Depends(get_db_connection),
+    vector_store=Depends(get_vector_store_instance)
+) -> IngestResponse:
+    """
+    Upload and process a transcript file.
+    
+    Accepts text files containing meeting transcripts and processes
+    them through the ingestion pipeline.
+    
+    Args:
+        file: Transcript file (txt format)
+        project_id: Project ID
+        meeting_title: Meeting title
+        meeting_type: Type of meeting
+        meeting_date: When the meeting occurred
+        duration_minutes: Meeting duration
+        
+    Returns:
+        Ingestion results
+    """
+    try:
+        # Validate file type
+        if not file.filename.endswith('.txt'):
+            raise HTTPException(status_code=400, detail="Only .txt files are supported")
+        
+        # Read transcript
+        content = await file.read()
+        transcript = content.decode('utf-8')
+        
+        # Create meeting data
+        end_time = meeting_date.replace(
+            minute=meeting_date.minute + duration_minutes
+        )
+        
+        meeting_data = MeetingIngest(
+            project_id=project_id,
+            title=meeting_title,
+            meeting_type=meeting_type,
+            start_time=meeting_date,
+            end_time=end_time,
+            participants=[],  # Would need to extract from transcript
+            transcript=transcript
+        )
+        
+        # Process through regular ingestion
+        return await ingest_meeting(meeting_data, db, vector_store)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+
+@router.get("/stats/project/{project_id}")
+async def get_project_statistics(
+    project_id: str,
+    db=Depends(get_db_connection)
+) -> Dict[str, Any]:
+    """
+    Get statistics for a project.
+    
+    Args:
+        project_id: Project ID
+        
+    Returns:
+        Project statistics including memory counts, meeting info, etc.
+    """
+    try:
+        memory_repo = get_memory_repository(db)
+        meeting_repo = get_meeting_repository(db)
+        
+        # Get memory statistics
+        memory_stats = await memory_repo.get_memory_statistics(project_id)
+        
+        # Get meeting statistics
+        meeting_stats = await meeting_repo.get_meeting_statistics(project_id)
+        
+        return {
+            "project_id": project_id,
+            "memories": memory_stats,
+            "meetings": meeting_stats,
+            "generated_at": datetime.now()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get project statistics: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")
