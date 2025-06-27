@@ -17,59 +17,14 @@ from concurrent.futures import ThreadPoolExecutor
 
 from .temporal_extractor import TemporalDimensionExtractor, TemporalFeatures
 from .emotional_extractor import EmotionalDimensionExtractor, EmotionalFeatures
+from .social_extractor import SocialDimensionExtractor, SocialFeatures
+from .causal_extractor import CausalDimensionExtractor, CausalFeatures
+from .evolutionary_extractor import EvolutionaryDimensionExtractor, EvolutionaryFeatures
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class SocialFeatures:
-    """Placeholder social dimensions (3D)."""
-    authority: float = 0.5
-    influence: float = 0.5  
-    team_dynamics: float = 0.5
-    
-    def to_array(self) -> np.ndarray:
-        """Convert to numpy array."""
-        return np.array([self.authority, self.influence, self.team_dynamics])
-    
-    @classmethod
-    def from_array(cls, array: np.ndarray) -> 'SocialFeatures':
-        """Create from numpy array."""
-        return cls(authority=array[0], influence=array[1], team_dynamics=array[2])
-
-
-@dataclass
-class CausalFeatures:
-    """Placeholder causal dimensions (3D)."""
-    dependencies: float = 0.5
-    impact: float = 0.5
-    risk_factors: float = 0.5
-    
-    def to_array(self) -> np.ndarray:
-        """Convert to numpy array.""" 
-        return np.array([self.dependencies, self.impact, self.risk_factors])
-    
-    @classmethod
-    def from_array(cls, array: np.ndarray) -> 'CausalFeatures':
-        """Create from numpy array."""
-        return cls(dependencies=array[0], impact=array[1], risk_factors=array[2])
-
-
-@dataclass
-class StrategicFeatures:
-    """Placeholder strategic dimensions (3D)."""
-    alignment: float = 0.5
-    innovation: float = 0.5
-    value: float = 0.5
-    
-    def to_array(self) -> np.ndarray:
-        """Convert to numpy array."""
-        return np.array([self.alignment, self.innovation, self.value])
-    
-    @classmethod
-    def from_array(cls, array: np.ndarray) -> 'StrategicFeatures':
-        """Create from numpy array."""
-        return cls(alignment=array[0], innovation=array[1], value=array[2])
+# Feature classes are now imported from their respective modules
 
 
 @dataclass
@@ -79,20 +34,20 @@ class CognitiveDimensions:
     emotional: EmotionalFeatures    # 3D
     social: SocialFeatures         # 3D
     causal: CausalFeatures         # 3D
-    strategic: StrategicFeatures   # 3D
+    evolutionary: EvolutionaryFeatures   # 3D
     
     def to_array(self) -> np.ndarray:
         """
         Convert to 16D numpy array.
         
-        Order: temporal(4) + emotional(3) + social(3) + causal(3) + strategic(3)
+        Order: temporal(4) + emotional(3) + social(3) + causal(3) + evolutionary(3)
         """
         return np.concatenate([
             self.temporal.to_array(),
             self.emotional.to_array(),
             self.social.to_array(),
             self.causal.to_array(),
-            self.strategic.to_array()
+            self.evolutionary.to_array()
         ])
     
     def to_dict(self) -> Dict[str, float]:
@@ -116,10 +71,10 @@ class CognitiveDimensions:
             "dependencies": array[10],
             "impact": array[11],
             "risk_factors": array[12],
-            # Strategic (placeholder)
-            "alignment": array[13],
-            "innovation": array[14],
-            "value": array[15]
+            # Evolutionary (placeholder)
+            "change_rate": array[13],
+            "innovation_level": array[14],
+            "adaptation_need": array[15]
         }
     
     @classmethod
@@ -133,7 +88,7 @@ class CognitiveDimensions:
             emotional=EmotionalFeatures.from_array(array[4:7]),
             social=SocialFeatures.from_array(array[7:10]),
             causal=CausalFeatures.from_array(array[10:13]),
-            strategic=StrategicFeatures.from_array(array[13:16])
+            evolutionary=EvolutionaryFeatures.from_array(array[13:16])
         )
 
 
@@ -161,26 +116,41 @@ class DimensionAnalyzer:
     - Emotional (3D): Fully implemented with VADER + custom patterns
     - Social (3D): Placeholder implementation (returns 0.5 for all)
     - Causal (3D): Placeholder implementation (returns 0.5 for all)
-    - Strategic (3D): Placeholder implementation (returns 0.5 for all)
+    - Evolutionary (3D): Placeholder implementation (returns 0.5 for all)
     """
     
-    def __init__(self, use_parallel: bool = True):
+    def __init__(self, use_parallel: bool = True, use_cache: bool = True):
         """
         Initialize the dimension analyzer.
 
         Args:
             use_parallel: Whether to extract dimensions in parallel
+            use_cache: Whether to use dimension caching
         """
-        # Initialize implemented extractors
+        # Initialize all extractors
         self.temporal_extractor = TemporalDimensionExtractor()
         self.emotional_extractor = EmotionalDimensionExtractor()
+        self.social_extractor = SocialDimensionExtractor()
+        self.causal_extractor = CausalDimensionExtractor()
+        self.evolutionary_extractor = EvolutionaryDimensionExtractor()
         
-        # Thread pool for parallel extraction (only 2 real extractors for now)
+        # Thread pool for parallel extraction
         self.use_parallel = use_parallel
         if use_parallel:
-            self._executor = ThreadPoolExecutor(max_workers=2)
+            self._executor = ThreadPoolExecutor(max_workers=5)
         
-        logger.info("DimensionAnalyzer initialized with temporal and emotional extractors")
+        # Initialize cache if enabled
+        self.use_cache = use_cache
+        if use_cache:
+            from .dimension_cache import get_dimension_cache
+            self._cache = get_dimension_cache()
+        else:
+            self._cache = None
+        
+        logger.info(
+            f"DimensionAnalyzer initialized with all dimension extractors "
+            f"(parallel={use_parallel}, cache={use_cache})"
+        )
     
     async def analyze(
         self,
@@ -200,6 +170,23 @@ class DimensionAnalyzer:
         if context is None:
             context = DimensionExtractionContext()
         
+        # Check cache if enabled
+        if self.use_cache and self._cache:
+            # Create cacheable context dict
+            cache_context = {
+                "content_type": context.content_type,
+                "speaker": context.speaker,
+                "speaker_role": context.speaker_role,
+                "timestamp_ms": context.timestamp_ms,
+                "meeting_duration_ms": context.meeting_duration_ms,
+            }
+            
+            cached_dimensions = self._cache.get(content, cache_context)
+            if cached_dimensions is not None:
+                logger.debug("Cache hit for dimension extraction")
+                return cached_dimensions
+        
+        # Extract dimensions
         if self.use_parallel:
             # Extract real dimensions in parallel
             dimensions = await self._analyze_parallel(content, context)
@@ -209,6 +196,10 @@ class DimensionAnalyzer:
         
         # Validate dimensions
         self._validate_dimensions(dimensions)
+        
+        # Store in cache if enabled
+        if self.use_cache and self._cache:
+            self._cache.put(content, dimensions, cache_context)
         
         return dimensions
     
@@ -220,7 +211,7 @@ class DimensionAnalyzer:
         """Extract dimensions in parallel for performance."""
         loop = asyncio.get_event_loop()
         
-        # Create extraction tasks for implemented extractors
+        # Create extraction tasks for all extractors
         tasks = [
             loop.run_in_executor(
                 self._executor,
@@ -237,19 +228,42 @@ class DimensionAnalyzer:
                 content,
                 context.speaker,
                 context.content_type
+            ),
+            loop.run_in_executor(
+                self._executor,
+                self.social_extractor.extract,
+                content,
+                context.speaker,
+                context.speaker_role,
+                context.participants,
+                context.content_type
+            ),
+            loop.run_in_executor(
+                self._executor,
+                self.causal_extractor.extract,
+                content,
+                context.content_type,
+                context.linked_memories
+            ),
+            loop.run_in_executor(
+                self._executor,
+                self.evolutionary_extractor.extract,
+                content,
+                context.content_type,
+                context.timestamp_ms,
+                None  # previous_versions - not available in context yet
             )
         ]
         
-        # Wait for real extractions
+        # Wait for all extractions
         results = await asyncio.gather(*tasks)
         
-        # Add placeholder dimensions
         return CognitiveDimensions(
             temporal=results[0],
             emotional=results[1],
-            social=SocialFeatures(),          # Placeholder
-            causal=CausalFeatures(),          # Placeholder
-            strategic=StrategicFeatures()     # Placeholder
+            social=results[2],
+            causal=results[3],
+            evolutionary=results[4]
         )
     
     def _analyze_sequential(
@@ -272,13 +286,33 @@ class DimensionAnalyzer:
             context.content_type
         )
         
-        # Add placeholder dimensions
+        social = self.social_extractor.extract(
+            content,
+            context.speaker,
+            context.speaker_role,
+            context.participants,
+            context.content_type
+        )
+        
+        causal = self.causal_extractor.extract(
+            content,
+            context.content_type,
+            context.linked_memories
+        )
+        
+        evolutionary = self.evolutionary_extractor.extract(
+            content,
+            context.content_type,
+            context.timestamp_ms,
+            None  # previous_versions - not available in context yet
+        )
+        
         return CognitiveDimensions(
             temporal=temporal,
             emotional=emotional,
-            social=SocialFeatures(),          # Placeholder
-            causal=CausalFeatures(),          # Placeholder
-            strategic=StrategicFeatures()     # Placeholder
+            social=social,
+            causal=causal,
+            evolutionary=evolutionary
         )
     
     def _validate_dimensions(self, dimensions: CognitiveDimensions) -> None:
@@ -304,7 +338,7 @@ class DimensionAnalyzer:
             dimensions.emotional = clipped.emotional
             dimensions.social = clipped.social
             dimensions.causal = clipped.causal
-            dimensions.strategic = clipped.strategic
+            dimensions.evolutionary = clipped.evolutionary
     
     async def batch_analyze(
         self,
@@ -362,8 +396,8 @@ class DimensionAnalyzer:
             "authority", "influence", "team_dynamics",
             # Causal (placeholder)
             "dependencies", "impact", "risk_factors",
-            # Strategic (placeholder)
-            "alignment", "innovation", "value"
+            # Evolutionary (placeholder)
+            "change_rate", "innovation_level", "adaptation_need"
         ]
         
         stats = {}

@@ -34,6 +34,18 @@ class TemporalFeatures:
             self.sequence_position,
             self.duration_relevance
         ])
+    
+    @classmethod
+    def from_array(cls, array: np.ndarray) -> 'TemporalFeatures':
+        """Create from numpy array."""
+        if array.shape != (4,):
+            raise ValueError(f"Array must be 4D, got {array.shape}")
+        return cls(
+            urgency=float(array[0]),
+            deadline_proximity=float(array[1]),
+            sequence_position=float(array[2]),
+            duration_relevance=float(array[3])
+        )
 
 
 class TemporalDimensionExtractor:
