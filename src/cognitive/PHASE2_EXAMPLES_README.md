@@ -41,7 +41,65 @@ This directory contains example implementations for Phase 2 cognitive intelligen
 - Consolidation based on access frequency, recency, and distribution
 - Content-type specific decay multipliers (decisions decay slower than questions)
 
-## Integration Notes
+### 4. **Hierarchical Qdrant Storage** (`storage/hierarchical_qdrant.py`)
+- Enhanced 3-tier Qdrant vector storage system
+- L0 (concepts), L1 (contexts), L2 (episodes) collections
+- Optimized HNSW parameters for each level
+- Cross-level search capabilities
+
+**Key Features:**
+- Collection-specific optimization settings
+- Metadata filtering support
+- Batch operations
+- Storage statistics and monitoring
+
+### 5. **Enhanced SQLite Persistence** (`storage/enhanced_sqlite.py`)
+- Cognitive metadata storage with decay and consolidation tracking
+- Bridge cache for discovered connections
+- Retrieval statistics tracking
+- Enhanced connection graph with stakeholder/deliverable awareness
+
+**Key Features:**
+- Cognitive embedding storage
+- Consolidation candidate identification
+- Bridge discovery caching with TTL
+- Performance analytics tracking
+
+### 6. **Contextual Retrieval Coordinator** (`retrieval/contextual_retrieval.py`)
+- High-level orchestration of all retrieval methods
+- Integrates activation, similarity, and bridge discovery
+- Automatic result categorization (core/peripheral/bridge)
+- Configurable retrieval strategies
+
+**Key Features:**
+- Multi-method retrieval fusion
+- Project and stakeholder filtering
+- Performance tracking
+- Result explanation generation
+
+### 7. **Similarity Search** (`retrieval/similarity_search.py`)
+- Cosine similarity with recency bias
+- Date-based secondary ranking for close scores
+- Multi-level search across hierarchy
+- Configurable weighting strategies
+
+**Key Features:**
+- Recency decay (exponential, 1-week default)
+- Modification date awareness
+- Similarity clustering for ranking
+- Performance optimizations
+
+### 8. **Bridge Discovery** (`retrieval/bridge_discovery.py`)
+- Finds serendipitous connections between concepts
+- Distance inversion algorithm
+- Novelty and connection potential scoring
+- Human-readable explanations
+
+**Key Features:**
+- Cross-meeting/project bridge detection
+- Shared entity analysis
+- Temporal proximity scoring
+- Concept connection identification## Integration Notes
 
 These examples need to be adapted for the consulting-specific requirements:
 
