@@ -1,0 +1,46 @@
+# Coverage.py configuration for Cognitive Meeting Intelligence System
+
+[run]
+source = src
+branch = True
+parallel = True
+omit = 
+    */tests/*
+    */test_*.py
+    */__pycache__/*
+    */venv/*
+    */migrations/*
+    */.tox/*
+    */setup.py
+    */conftest.py
+
+[report]
+precision = 2
+show_missing = True
+skip_covered = False
+skip_empty = True
+sort = Cover
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    def __str__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod
+    @abc.abstractmethod
+    except ImportError:
+    # Defensive programming
+    if False:
+    if 0:
+
+[html]
+directory = coverage_html_report
+
+[xml]
+output = coverage.xml
+
+[json]
+output = coverage.json
+pretty_print = True

@@ -27,9 +27,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Global instances
-db_connection: DatabaseConnection = None
-vector_store: QdrantVectorStore = None
+from .dependencies import set_db_connection, set_vector_store
 
 
 @asynccontextmanager
@@ -43,22 +41,22 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     
     # Initialize database connection
-    global db_connection
     db_connection = DatabaseConnection(
         db_path=settings.database_url.replace("sqlite:///", "")
     )
+    set_db_connection(db_connection)
     
     # Initialize database schema
     await db_connection.execute_schema()
     logger.info("Database initialized")
     
     # Initialize vector store
-    global vector_store
     vector_store = QdrantVectorStore(
         host=settings.qdrant_host,
         port=settings.qdrant_port,
         api_key=settings.qdrant_api_key
     )
+    set_vector_store(vector_store)
     logger.info("Vector store initialized")
     
     # Warm up models
@@ -277,15 +275,6 @@ def create_app() -> FastAPI:
 # Create app instance
 app = create_app()
 
-# Dependency injection helpers
-def get_db_connection() -> DatabaseConnection:
-    """Get database connection for dependency injection."""
-    return db_connection
-
-
-def get_vector_store_instance() -> QdrantVectorStore:
-    """Get vector store for dependency injection."""
-    return vector_store
 
 
 # Export for uvicorn

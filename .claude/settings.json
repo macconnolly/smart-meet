@@ -1,7 +1,39 @@
 {
   "permissions": {
     "allow": [
-      "Bash(*)"
+      "Bash(*)",
+      "Python(*)",
+      "JavaScript(*)",
+      "Java(*)",
+      "C++(*)",
+      "git(*)",
+      "curl(*)",
+      "wget(*)",
+      "http(*)",
+      "file(*)",
+      "read(*)",
+      "write(*)",
+      "execute(*)",
+      "network(*)",
+      "system(*)",
+      "docker(*)",
+      "kubernetes(*)",
+      "aws(*)",
+      "azure(*)",
+      "gcp(*)",
+      "terraform(*)",
+      "kafka(*)",
+      "redis(*)",
+      "mysql(*)",
+      "postgresql(*)",
+      "Bash(git add:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(*)",
+      "Bash(ls:*)",
+      "Bash(source:*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)"
     ],
     "deny": []
   }

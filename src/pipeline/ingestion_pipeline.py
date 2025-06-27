@@ -11,6 +11,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 import time
+import numpy as np
 
 from ..models.entities import (
     Meeting, Memory, MemoryConnection, Vector, ConnectionType
@@ -582,5 +583,3 @@ async def create_ingestion_pipeline(
     return pipeline
 
 
-# Add numpy import at the top
-import numpy as np

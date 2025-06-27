@@ -12,7 +12,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query
 from pydantic import BaseModel, Field
 
-from ..main import get_db_connection, get_vector_store_instance
+from ..dependencies import get_db_connection, get_vector_store_instance
 from ...models.entities import (
     Meeting, Memory, Project, MeetingType, ContentType,
     ProjectType, ProjectStatus, MeetingCategory

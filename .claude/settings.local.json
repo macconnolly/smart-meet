@@ -80,7 +80,14 @@
       "Bash(mypy:*)",
       "Bash(MYPY_CACHE_DIR=/tmp/mypy_cache mypy src/models/entities.py src/storage/sqlite/connection.py scripts/init_db.py --ignore-missing-imports --no-incremental)",
       "Bash(curl:*)",
-      "Bash(pip show:*)"
+      "Bash(pip show:*)",
+      "Bash(git checkout:*)",
+      "Bash(git worktree:*)",
+      "Bash(git merge:*)",
+      "Bash(git pull:*)",
+      "Bash(git fetch:*)",
+      "Bash(./worktree-sync.sh status:*)",
+      "Bash(./worktree-sync.sh:*)"
     ],
     "deny": []
   }
