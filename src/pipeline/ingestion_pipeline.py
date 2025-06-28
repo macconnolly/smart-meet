@@ -7,6 +7,7 @@ stored memories with vectors and connections in the cognitive system.
 
 import logging
 import asyncio
+import json
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
@@ -15,7 +16,11 @@ import numpy as np
 
 from ..models.entities import Meeting, Memory, MemoryConnection, Vector, ConnectionType
 from ..extraction.memory_extractor import MemoryExtractor
-from ..extraction.dimensions.dimension_analyzer import DimensionAnalyzer, DimensionExtractionContext
+from ..extraction.dimensions.dimension_analyzer import (
+    DimensionAnalyzer,
+    DimensionExtractionContext,
+    CognitiveDimensions
+)
 from ..embedding.onnx_encoder import ONNXEncoder
 from ..embedding.vector_manager import VectorManager
 from ..storage.sqlite.repositories import (
@@ -99,6 +104,44 @@ class IngestionPipeline:
             "total_time_ms": 0.0,
             "stage_times": {},
         }
+    
+    async def ingest_memory(self, memory: Memory, raw_content: str) -> None:
+        """
+        Ingest a single memory with full cognitive processing.
+        
+        Args:
+            memory: Memory object to process
+            raw_content: Raw content for dimension extraction
+        """
+        # 1. Extract Cognitive Dimensions
+        dimension_analyzer = self.dimension_analyzer
+        # Create context for dimension extraction
+        dim_context = DimensionExtractionContext(
+            timestamp_ms=memory.timestamp_ms,
+            speaker=memory.speaker,
+            speaker_role=memory.speaker_role,
+            content_type=memory.content_type.value,
+            project_id=memory.project_id,
+            # Add other relevant context fields if available
+        )
+        cognitive_dimensions = await dimension_analyzer.analyze(raw_content, dim_context)
+        memory.dimensions_json = json.dumps(cognitive_dimensions.to_dict())  # Store as JSON
+        
+        # 2. Generate Semantic Embedding
+        encoder = self.encoder
+        semantic_embedding = encoder.encode(raw_content, normalize=True)
+        
+        # 3. Compose Full 400D Vector
+        vector_manager = self.vector_manager
+        full_vector_obj = vector_manager.compose_vector(semantic_embedding, cognitive_dimensions)
+        
+        # 4. Store in Qdrant
+        vector_store = self.vector_store
+        await vector_store.store_memory(memory, full_vector_obj)  # Pass full_vector_obj
+        
+        # 5. Store in SQLite (MemoryRepository)
+        memory_repo = self.memory_repo
+        await memory_repo.create(memory)  # This should now save dimensions_json
 
     async def ingest_meeting(self, meeting: Meeting, transcript: str) -> IngestionResult:
         """
@@ -273,34 +316,34 @@ class IngestionPipeline:
 
     async def _extract_dimensions(
         self, memories: List[Memory], meeting: Meeting, errors: List[str]
-    ) -> np.ndarray:
+    ) -> List[CognitiveDimensions]:
         """Extract cognitive dimensions for all memories."""
         try:
-            # Prepare contexts
-            contexts = []
-            meeting_duration_ms = (
-                meeting.duration_minutes * 60 * 1000 if meeting.duration_minutes else None
-            )
-
-            for memory in memories:
+            dimension_analyzer = self.dimension_analyzer
+            all_dimensions = []
+            
+            for i, memory in enumerate(memories):
+                # Create context for each memory
                 context = DimensionExtractionContext(
                     timestamp_ms=memory.timestamp_ms,
-                    meeting_duration_ms=meeting_duration_ms,
                     speaker=memory.speaker,
                     speaker_role=memory.speaker_role,
                     content_type=memory.content_type.value,
-                    participants=[p.get("name") for p in meeting.participants],
                     meeting_type=meeting.meeting_type.value,
                     project_id=meeting.project_id,
+                    current_memory_index=i,
+                    total_memories=len(memories)
                 )
-                contexts.append(context)
-
-            # Extract dimensions
-            contents = [memory.content for memory in memories]
-            dimensions = await self.dimension_analyzer.batch_analyze(contents, contexts)
-
-            logger.debug(f"Extracted dimensions with shape {dimensions.shape}")
-            return dimensions
+                
+                # Extract dimensions
+                cognitive_dimensions = await dimension_analyzer.analyze(memory.content, context)
+                all_dimensions.append(cognitive_dimensions)
+                
+                # Store dimensions JSON in memory
+                memory.dimensions_json = json.dumps(cognitive_dimensions.to_dict())
+            
+            logger.debug(f"Extracted dimensions for {len(all_dimensions)} memories")
+            return all_dimensions
 
         except Exception as e:
             error_msg = f"Dimension extraction failed: {str(e)}"
@@ -310,19 +353,17 @@ class IngestionPipeline:
             return np.full((len(memories), 16), 0.5)
 
     def _compose_vectors(
-        self, embeddings: np.ndarray, dimensions: np.ndarray, errors: List[str]
+        self, embeddings: np.ndarray, dimensions: List[CognitiveDimensions], errors: List[str]
     ) -> List[Vector]:
         """Compose full 400D vectors."""
         try:
-            vectors = self.vector_manager.batch_compose(embeddings, dimensions)
-
-            # Validate vectors
-            for i, vector in enumerate(vectors):
-                is_valid, error = self.vector_manager.validate_vector(vector)
-                if not is_valid:
-                    errors.append(f"Invalid vector at index {i}: {error}")
-                    # Normalize to fix
-                    vectors[i] = self.vector_manager.normalize_vector(vector)
+            vectors = []
+            vector_manager = self.vector_manager
+            
+            for i in range(len(embeddings)):
+                # Compose each vector
+                full_vector = vector_manager.compose_vector(embeddings[i], dimensions[i])
+                vectors.append(full_vector)
 
             return vectors
 

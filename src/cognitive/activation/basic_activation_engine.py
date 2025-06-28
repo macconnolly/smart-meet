@@ -18,11 +18,12 @@ from loguru import logger
 from ...models.entities import Memory, MemoryConnection
 from ...storage.sqlite.repositories import MemoryRepository, MemoryConnectionRepository
 from ...storage.qdrant.vector_store import QdrantVectorStore, SearchFilter
+from ...storage.qdrant.vector_store import QdrantVectorStore, SearchFilter
 
 
 class ActivationResult:
     """Result of activation spreading process."""
-    
+
     def __init__(self):
         self.core_memories: List[Memory] = []
         self.peripheral_memories: List[Memory] = []
@@ -31,7 +32,7 @@ class ActivationResult:
         self.activation_explanations: Dict[str, str] = {} # Stores explanations for activated memories
         self.activation_time_ms: float = 0.0
         self.total_activated: int = 0
-        
+
     @property
     def total_activated(self) -> int:
         return len(self.core_memories) + len(self.peripheral_memories)
@@ -62,7 +63,7 @@ class BasicActivationEngine:
     Implements context-driven activation spreading that starts with high-similarity
     memories at L0 (concepts) and spreads activation through the connection graph
     using breadth-first search with threshold-based filtering.
-    
+
     This is the foundation that ConsultingActivationEngine will extend.
     """
 
@@ -94,8 +95,8 @@ class BasicActivationEngine:
         self.decay_factor = decay_factor
 
     async def activate_memories(
-        self, 
-        context: np.ndarray, 
+        self,
+        context: np.ndarray,
         threshold: float,
         max_activations: int = 50,
         project_id: Optional[str] = None
@@ -178,11 +179,11 @@ class BasicActivationEngine:
             ActivationResult with activated memories
         """
         result = ActivationResult()
-        
+
         # Initialize BFS structures
         queue = deque([(m, 1.0, 0, [m.id]) for m in starting_memories])  # (memory, strength, depth, path)
         activated_ids: Set[str] = set()
-        
+
         # Process starting memories
         for memory in starting_memories:
             activated_ids.add(memory.id)
@@ -192,50 +193,50 @@ class BasicActivationEngine:
         # BFS traversal through connection graph
         while queue and len(activated_ids) < max_activations:
             current_memory, current_strength, depth, path = queue.popleft()
-            
+
             # Get connected memories
             connections = await self.connection_repo.get_connections_for_memory(
                 current_memory.id,
                 min_strength=self.peripheral_threshold
             )
-            
+
             for connection in connections:
                 target_id = connection.target_id if connection.source_id == current_memory.id else connection.source_id
-                
+
                 if target_id not in activated_ids:
                     # Get the connected memory
                     connected_memory = await self.memory_repo.get_by_id(target_id)
                     if not connected_memory:
                         continue
-                        
+
                     # Apply project filter if specified
                     if project_id and connected_memory.project_id != project_id:
                         continue
-                    
+
                     # Calculate activation strength with decay
                     strength = current_strength * self.decay_factor * connection.connection_strength
-                    
+
                     # Apply threshold filtering
                     if strength >= threshold:
                         activated_ids.add(target_id)
                         new_path = path + [target_id]
                         explanation = self._generate_activation_explanation(connected_memory, strength, new_path)
                         result.add_activated_memory(connected_memory, strength, new_path, explanation, self.core_threshold, self.peripheral_threshold)
-                        
+
                         # Add to queue for further traversal
                         queue.append((connected_memory, strength, depth + 1, new_path))
-                        
+
                         # Check activation limit
                         if len(activated_ids) >= max_activations:
                             break
 
         # Sort memories by activation strength
         result.core_memories.sort(
-            key=lambda m: result.activation_strengths.get(m.id, 0.0), 
+            key=lambda m: result.activation_strengths.get(m.id, 0.0),
             reverse=True
         )
         result.peripheral_memories.sort(
-            key=lambda m: result.activation_strengths.get(m.id, 0.0), 
+            key=lambda m: result.activation_strengths.get(m.id, 0.0),
             reverse=True
         )
 
@@ -256,7 +257,7 @@ class BasicActivationEngine:
             explanation_parts.append(f"This memory was directly activated as a starting point.")
         else:
             explanation_parts.append(f"This memory was activated through its connection to memory '{path[-2]}'.")
-        
+
         explanation_parts.append(f"It has an activation strength of {strength:.2f}.")
 
         if memory.memory_type:
@@ -286,7 +287,7 @@ class BasicActivationEngine:
 
         return " ".join(explanation_parts)
 
-    
+
 
     async def _bfs_activation(
         self,
@@ -310,16 +311,16 @@ class BasicActivationEngine:
             ActivationResult with activated memories
         """
         result = ActivationResult()
-        
+
         # Initialize BFS structures
         queue = deque([(m, 1.0, 0, [m.id]) for m in starting_memories])  # (memory, strength, depth, path)
         activated_ids: Set[str] = set()
-        
+
         # Process starting memories
         for memory in starting_memories:
             activated_ids.add(memory.id)
             result.activation_strengths[memory.id] = 1.0
-            
+
             if 1.0 >= self.core_threshold:
                 result.core_memories.append(memory)
             elif 1.0 >= self.peripheral_threshold:
@@ -328,55 +329,55 @@ class BasicActivationEngine:
         # BFS traversal through connection graph
         while queue and len(activated_ids) < max_activations:
             current_memory, current_strength, depth, path = queue.popleft()
-            
+
             # Get connected memories
             connections = await self.connection_repo.get_connections_for_memory(
                 current_memory.id,
                 min_strength=self.peripheral_threshold
             )
-            
+
             for connection in connections:
                 target_id = connection.target_id if connection.source_id == current_memory.id else connection.source_id
-                
+
                 if target_id not in activated_ids:
                     # Get the connected memory
                     connected_memory = await self.memory_repo.get_by_id(target_id)
                     if not connected_memory:
                         continue
-                        
+
                     # Apply project filter if specified
                     if project_id and connected_memory.project_id != project_id:
                         continue
-                    
+
                     # Calculate activation strength with decay
                     strength = current_strength * self.decay_factor * connection.connection_strength
-                    
+
                     # Apply threshold filtering
                     if strength >= threshold:
                         activated_ids.add(target_id)
                         result.activation_strengths[target_id] = strength
-                        
+
                         # Categorize as core or peripheral
                         if strength >= self.core_threshold:
                             result.core_memories.append(connected_memory)
                         elif strength >= self.peripheral_threshold:
                             result.peripheral_memories.append(connected_memory)
-                        
+
                         # Add to queue for further traversal
                         new_path = path + [target_id]
                         queue.append((connected_memory, strength, depth + 1, new_path))
-                        
+
                         # Check activation limit
                         if len(activated_ids) >= max_activations:
                             break
 
         # Sort memories by activation strength
         result.core_memories.sort(
-            key=lambda m: result.activation_strengths.get(m.id, 0.0), 
+            key=lambda m: result.activation_strengths.get(m.id, 0.0),
             reverse=True
         )
         result.peripheral_memories.sort(
-            key=lambda m: result.activation_strengths.get(m.id, 0.0), 
+            key=lambda m: result.activation_strengths.get(m.id, 0.0),
             reverse=True
         )
 
@@ -431,8 +432,8 @@ class BasicActivationEngine:
         }
 
     def update_thresholds(
-        self, 
-        core_threshold: float, 
+        self,
+        core_threshold: float,
         peripheral_threshold: float
     ) -> None:
         """
