@@ -14,6 +14,7 @@ import json
 
 from ..models.entities import Vector
 from ..extraction.dimensions.dimension_analyzer import CognitiveDimensions
+from ..extraction.dimensions.analyzer import CognitiveDimensions
 
 logger = logging.getLogger(__name__)
 

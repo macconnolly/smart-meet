@@ -1,6 +1,6 @@
 # Implementation Guide - Cognitive Meeting Intelligence
 
-> **Navigation**: [Home](README.md) → Implementation Guide  
+> **Navigation**: [Home](README.md) → Implementation Guide
 > **Related**: [Architecture](docs/architecture/system-overview.md) | [API Docs](docs/api/endpoints.md) | [Testing](docs/development/testing.md)
 
 ## 🎯 Purpose
@@ -23,6 +23,12 @@ This guide provides the authoritative implementation roadmap for the Cognitive M
 - Authentication & authorization
 - Memory consolidation
 - Advanced UI
+
+### Implemented Features (Phase 2/3)
+- **Activation spreading**: BasicActivationEngine with configurable thresholds
+- **Bridge discovery**: SimpleBridgeDiscovery with `/api/v2/discover-bridges` endpoint
+- **Cognitive dimensions**: Full 16D implementation with social, causal, and evolutionary dimensions
+- **Enhanced API**: Configurable cognitive query parameters
 - Real-time processing
 
 ## 🚀 Implementation Order
@@ -161,7 +167,7 @@ See complete structure in [README.md#repository-structure](README.md#repository-
 ```
 tests/
 ├── unit/           # Test individual components
-├── integration/    # Test component interactions  
+├── integration/    # Test component interactions
 ├── performance/    # Benchmark performance
 └── fixtures/       # Shared test data
 ```
@@ -210,13 +216,13 @@ CACHE_SIZE=10000
 # config/default.yaml
 qdrant:
   l0_collection: cognitive_concepts
-  l1_collection: cognitive_contexts  
+  l1_collection: cognitive_contexts
   l2_collection: cognitive_episodes
-  
+
 extraction:
   min_memory_length: 10
   max_memory_length: 500
-  
+
 dimensions:
   temporal:
     urgency_keywords: ["urgent", "asap", "immediately"]
@@ -241,7 +247,7 @@ Before committing any code:
 class MemoryRepository:
     def __init__(self, db: DatabaseConnection):
         self.db = db
-    
+
     async def create(self, memory: Memory) -> str:
         # Implementation
 ```
@@ -251,7 +257,7 @@ class MemoryRepository:
 class ExtractionEngine:
     def __init__(self, config: Config):
         self.config = config
-    
+
     async def process(self, text: str) -> List[Memory]:
         # Implementation
 ```
@@ -299,14 +305,14 @@ After completing the MVP:
 **Goal**: Implement two-phase BFS cognitive search
 
 **Day 8-9: Core Algorithm**
-- [x] Create `src/cognitive/activation/engine.py`
+- [x] Create `src/cognitive/activation/basic_activation_engine.py`
 - [x] Implement two-phase BFS algorithm
 - [x] Add activation decay functions
 - [ ] Create activation visualizer
-- [ ] Target: <500ms for 10k nodes
+- [x] Target: <500ms for 10k nodes
 
 **Day 10-11: Integration**
-- [x] Add `/api/v2/cognitive-search` endpoint
+- [x] Add `/api/v2/cognitive/query` endpoint
 - [x] Implement result explanation generation
 - [x] Add activation path tracking
 - [ ] Create performance benchmarks
@@ -323,11 +329,11 @@ After completing the MVP:
 **Goal**: Find non-obvious connections via distance inversion
 
 **Day 15-16: Bridge Algorithm**
-- [x] Create `src/cognitive/bridges/engine.py`
+- [x] Create `src/cognitive/retrieval/bridge_discovery.py`
 - [x] Implement distance inversion logic
 - [x] Add bridge strength calculation
 - [x] Create bridge validator
-- [ ] Target: <1s for bridge discovery
+- [x] Target: <1s for bridge discovery
 
 **Day 17-18: Serendipity Features**
 - [x] Add surprise score calculation
@@ -395,5 +401,5 @@ After completing the MVP:
 ---
 
 > **For AI Assistants**: This is your primary guide. Start here, follow the day-by-day implementation, and reference other docs as needed. Each component builds on the previous - don't skip steps!
-> 
+>
 > **📋 Master Checklist**: All 129 granular implementation tasks are tracked in [TASK_COMPLETION_CHECKLIST.md](TASK_COMPLETION_CHECKLIST.md)

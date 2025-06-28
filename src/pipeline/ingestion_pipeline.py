@@ -78,7 +78,7 @@ class IngestionPipeline:
         self,
         memory_extractor: MemoryExtractor,
         encoder: ONNXEncoder,
-        dimension_analyzer: DimensionAnalyzer,
+        dimension_analyzer: Any,  # DimensionAnalyzer instance
         vector_manager: VectorManager,
         meeting_repo: MeetingRepository,
         memory_repo: MemoryRepository,
@@ -104,17 +104,17 @@ class IngestionPipeline:
             "total_time_ms": 0.0,
             "stage_times": {},
         }
-    
+
     async def ingest_memory(self, memory: Memory, raw_content: str) -> None:
         """
         Ingest a single memory with full cognitive processing.
-        
+
         Args:
             memory: Memory object to process
             raw_content: Raw content for dimension extraction
         """
         # 1. Extract Cognitive Dimensions
-        dimension_analyzer = self.dimension_analyzer
+        dimension_analyzer = get_dimension_analyzer()
         # Create context for dimension extraction
         dim_context = DimensionExtractionContext(
             timestamp_ms=memory.timestamp_ms,
@@ -126,19 +126,19 @@ class IngestionPipeline:
         )
         cognitive_dimensions = await dimension_analyzer.analyze(raw_content, dim_context)
         memory.dimensions_json = json.dumps(cognitive_dimensions.to_dict())  # Store as JSON
-        
+
         # 2. Generate Semantic Embedding
-        encoder = self.encoder
+        encoder = get_encoder()
         semantic_embedding = encoder.encode(raw_content, normalize=True)
-        
+
         # 3. Compose Full 400D Vector
-        vector_manager = self.vector_manager
+        vector_manager = get_vector_manager()
         full_vector_obj = vector_manager.compose_vector(semantic_embedding, cognitive_dimensions)
-        
+
         # 4. Store in Qdrant
         vector_store = self.vector_store
         await vector_store.store_memory(memory, full_vector_obj)  # Pass full_vector_obj
-        
+
         # 5. Store in SQLite (MemoryRepository)
         memory_repo = self.memory_repo
         await memory_repo.create(memory)  # This should now save dimensions_json
@@ -319,9 +319,9 @@ class IngestionPipeline:
     ) -> List[CognitiveDimensions]:
         """Extract cognitive dimensions for all memories."""
         try:
-            dimension_analyzer = self.dimension_analyzer
+            dimension_analyzer = get_dimension_analyzer()
             all_dimensions = []
-            
+
             for i, memory in enumerate(memories):
                 # Create context for each memory
                 context = DimensionExtractionContext(
@@ -334,14 +334,14 @@ class IngestionPipeline:
                     current_memory_index=i,
                     total_memories=len(memories)
                 )
-                
+
                 # Extract dimensions
                 cognitive_dimensions = await dimension_analyzer.analyze(memory.content, context)
                 all_dimensions.append(cognitive_dimensions)
-                
+
                 # Store dimensions JSON in memory
-                memory.dimensions_json = json.dumps(cognitive_dimensions.to_dict())
-            
+                memory.dimensions_json = cognitive_dimensions.to_dict()
+
             logger.debug(f"Extracted dimensions for {len(all_dimensions)} memories")
             return all_dimensions
 
@@ -350,7 +350,16 @@ class IngestionPipeline:
             errors.append(error_msg)
             logger.error(error_msg)
             # Return default dimensions as fallback
-            return np.full((len(memories), 16), 0.5)
+            default_dims = []
+            for _ in memories:
+                default_dims.append(CognitiveDimensions(
+                    urgency=0.5, deadline_proximity=0.5, sequence_position=0.5, duration_relevance=0.5,
+                    polarity=0.5, intensity=0.5, confidence=0.5,
+                    authority=0.5, influence=0.5, team_dynamics=0.5,
+                    dependencies=0.5, impact=0.5, risk_factors=0.5,
+                    change_rate=0.5, innovation_level=0.5, adaptation_need=0.5
+                ))
+            return default_dims
 
     def _compose_vectors(
         self, embeddings: np.ndarray, dimensions: List[CognitiveDimensions], errors: List[str]
@@ -358,8 +367,8 @@ class IngestionPipeline:
         """Compose full 400D vectors."""
         try:
             vectors = []
-            vector_manager = self.vector_manager
-            
+            vector_manager = get_vector_manager()
+
             for i in range(len(embeddings)):
                 # Compose each vector
                 full_vector = vector_manager.compose_vector(embeddings[i], dimensions[i])
@@ -393,10 +402,7 @@ class IngestionPipeline:
                 # Update memories with Qdrant IDs
                 for memory, qdrant_id in zip(batch_memories, qdrant_ids):
                     memory.qdrant_id = qdrant_id
-
-                    # Store dimensions as JSON
-                    idx = memories.index(memory)
-                    memory.dimensions_json = self.vector_manager.to_json(vectors[idx])
+                    # dimensions_json already set in _extract_dimensions
 
                 # Store in SQLite
                 stored = await self.memory_repo.batch_create(batch_memories)

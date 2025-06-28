@@ -169,6 +169,9 @@ class CognitiveQueryRequest(BaseModel):
     project_id: Optional[str] = Field(None, description="Optional project ID to filter memories")
     max_activations: int = Field(50, ge=1, le=200, description="Maximum number of memories to activate")
     activation_threshold: float = Field(0.5, ge=0.0, le=1.0, description="Minimum activation strength to include a memory")
+    core_threshold: float = Field(0.7, ge=0.0, le=1.0, description="Threshold for core memory activation")
+    peripheral_threshold: float = Field(0.5, ge=0.0, le=1.0, description="Threshold for peripheral memory activation")
+    decay_factor: float = Field(0.8, ge=0.0, le=1.0, description="Factor for activation strength decay during spreading")
 
     class Config:
         schema_extra = {
@@ -237,9 +240,9 @@ async def cognitive_query(
             memory_repo=memory_repo,
             connection_repo=connection_repo,
             vector_store=vector_store,
-            core_threshold=0.7, # Default, can be made configurable
-            peripheral_threshold=0.5, # Default, can be made configurable
-            decay_factor=0.8 # Default, can be made configurable
+            core_threshold=request.core_threshold, # Use request parameter
+            peripheral_threshold=request.peripheral_threshold, # Use request parameter
+            decay_factor=request.decay_factor # Use request parameter
         )
 
         activation_result: ActivationResult = await activation_engine.activate_memories(

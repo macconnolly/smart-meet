@@ -34,7 +34,8 @@ try:
 except ImportError:
     raise ImportError("Qdrant client not installed. Please install: pip install qdrant-client")
 
-from ...models.entities import Memory, Vector
+from ...models.entities import Memory
+from ...extraction.dimensions.dimension_analyzer import CognitiveDimensions
 
 logger = logging.getLogger(__name__)
 

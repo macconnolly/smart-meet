@@ -75,6 +75,44 @@ class TestActivatedMemory:
         assert len(activated.activation_path) == 3
         assert "semantic" in activated.reasoning
 
+    def test_generate_activation_explanation_with_dimensions(self):
+        """Test that activation explanation includes cognitive dimensions."""
+        from src.extraction.dimensions.dimension_analyzer import CognitiveDimensions, TemporalFeatures, EmotionalFeatures, SocialFeatures, CausalFeatures, EvolutionaryFeatures
+
+        # Create a Memory with specific cognitive dimensions
+        cognitive_dims = CognitiveDimensions(
+            temporal=TemporalFeatures(urgency=0.9, deadline_proximity=0.8, sequence_position=0.5, duration_relevance=0.6),
+            emotional=EmotionalFeatures(polarity=0.7, intensity=0.6, confidence=0.8),
+            social=SocialFeatures(authority=0.9, influence=0.8, team_dynamics=0.7),
+            causal=CausalFeatures(dependencies=0.8, impact=0.9, risk_factors=0.7),
+            evolutionary=EvolutionaryFeatures(change_rate=0.6, innovation_level=0.9, adaptation_need=0.8)
+        )
+        memory = Memory(
+            id="mem-001",
+            meeting_id="meet-001",
+            project_id="proj-001",
+            content="This is a critical decision with high impact and innovation.",
+            speaker="Alice",
+            speaker_role="CEO",
+            cognitive_dimensions=cognitive_dims
+        )
+
+        engine = BasicActivationEngine(Mock(), Mock(), Mock()) # Mock dependencies
+        explanation = engine._generate_activation_explanation(memory, 0.95, ["start", "mem-001"])
+
+        # Assert that the explanation contains phrases related to the enhanced dimensions
+        assert "highly urgent memory" in explanation
+        assert "significant impact" in explanation
+        assert "authoritative source" in explanation
+        assert "high level of innovation" in explanation
+        assert "significant risk" not in explanation # Should not be present if risk is low
+        assert "important dependencies" in explanation
+
+        assert "activation strength of 0.95" in explanation
+        assert "type memory" in explanation
+        assert "contributed by Alice" in explanation
+        assert "associated with project 'proj-001'" in explanation
+
     def test_activation_score_validation(self):
         """Test activation score bounds."""
         memory = Memory(meeting_id="m1", project_id="p1", content="test")

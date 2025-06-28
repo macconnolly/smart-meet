@@ -316,17 +316,16 @@ async def search_memories(
         query_embedding = encoder.encode(search_request.query, normalize=True)
 
         # Extract cognitive dimensions from the search query itself
-        from ...extraction.dimensions.dimension_analyzer import get_dimension_analyzer, DimensionExtractionContext
+        from ...extraction.dimensions.analyzer import get_dimension_analyzer, DimensionExtractionContext
         dimension_analyzer = get_dimension_analyzer()
         # Create a minimal context for the query (e.g., content_type="query")
         query_dim_context = DimensionExtractionContext(content_type="query")
         query_cognitive_dimensions = await dimension_analyzer.analyze(search_request.query, query_dim_context)
 
-        # Compose query vector
-        vector_manager = get_vector_manager()
-        # Use the extracted cognitive dimensions for the query vector
-        query_vector_obj = vector_manager.compose_vector(query_embedding, query_cognitive_dimensions)
-        query_vector = query_vector_obj.full_vector
+                vector_manager = get_vector_manager()
+                # Use the extracted cognitive dimensions for the query vector
+                query_vector_obj = vector_manager.compose_vector(query_embedding, query_cognitive_dimensions)
+                query_vector = query_vector_obj.full_vector
 
         # Create search filter
         search_filter = SearchFilter(

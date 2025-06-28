@@ -491,24 +491,44 @@ class SimpleBridgeDiscovery:
         elif connection_potential > 0.5:
             explanations.append("links related ideas")
 
-        # Surprise explanation
+        # Add explanations based on enhanced cognitive dimensions
+        if candidate.cognitive_dimensions:
+            candidate_dims = candidate.cognitive_dimensions.to_dict()
+            if candidate_dims.get("authority", 0) > 0.7:
+                explanations.append(f"comes from an authoritative source ({candidate_dims["authority"]:.2f})")
+            if candidate_dims.get("impact", 0) > 0.7:
+                explanations.append(f"highlights a significant impact ({candidate_dims["impact"]:.2f})")
+            if candidate_dims.get("innovation_level", 0) > 0.7:
+                explanations.append(f"introduces a high level of innovation ({candidate_dims["innovation_level"]:.2f})")
+            if candidate_dims.get("risk_factors", 0) > 0.7:
+                explanations.append(f"identifies significant risk ({candidate_dims["risk_factors"]:.2f})")
+            if candidate_dims.get("dependencies", 0) > 0.7:
+                explanations.append(f"reveals important dependencies ({candidate_dims["dependencies"]:.2f})")
+            if candidate_dims.get("urgency", 0) > 0.7:
+                explanations.append(f"carries high urgency ({candidate_dims["urgency"]:.2f})")
+
+        # Add explanation for cognitive distance/surprise
         if surprise_score > 0.7:
-            explanations.append("is highly unexpected")
+            explanations.append("and offers a truly unexpected perspective.")
         elif surprise_score > 0.5:
-            explanations.append("offers a surprising connection")
+            explanations.append("and provides a surprising connection.")
 
-        # Specific connections
-        shared_count = self._count_shared_entities(candidate, retrieved_memories)
-        if shared_count > 0:
-            explanations.append(f"shares {shared_count} common reference(s)")
+        # Highlight the "Gap" Bridged
+        # This is a more complex logic, for now, let's add a general statement
+        if novelty_score > 0.6 and connection_potential > 0.6:
+            explanations.append("It bridges seemingly disparate concepts.")
 
-        # Meeting/project bridges
-        different_meetings = sum(
-            1 for m in retrieved_memories 
-            if m.meeting_id != candidate.meeting_id
-        )
-        if different_meetings == len(retrieved_memories):
-            explanations.append("from a different meeting")
+        # Suggest Implications/Actions (simplified for now)
+        if candidate.content_type.value in ["action", "decision", "risk"]:
+            explanations.append(f"Consider the implications of this {candidate.content_type.value}.")
+            if candidate.owner:
+                explanations.append(f"Follow up with {candidate.owner}.")
+
+        # Incorporate Stakeholder Context
+        if candidate.speaker:
+            explanations.append(f"Contributed by {candidate.speaker}.")
+            if candidate.speaker_role:
+                explanations.append(f"({candidate.speaker_role}).")
 
         if not explanations:
             explanations.append("creates an unexpected connection")
@@ -600,7 +620,7 @@ class SimpleBridgeDiscovery:
         if not hasattr(candidate, 'vector_embedding') or candidate.vector_embedding is None:
             return 0.0
 
-        candidate_vector = candidate.vector_embedding
+        candidate_vector = candidate.vector_embedding.full_vector # Use full 400D vector
 
         # Similarity to query context (higher is better)
         query_similarity = self._compute_cosine_similarity(candidate_vector, query_context)
@@ -609,7 +629,7 @@ class SimpleBridgeDiscovery:
         if not retrieved_memories:
             avg_retrieved_similarity = 0.0
         else:
-            retrieved_vectors = [m.vector_embedding for m in retrieved_memories if hasattr(m, 'vector_embedding') and m.vector_embedding is not None]
+            retrieved_vectors = [m.vector_embedding.full_vector for m in retrieved_memories if m.vector_embedding is not None]
             if not retrieved_vectors:
                 avg_retrieved_similarity = 0.0
             else:
@@ -619,9 +639,24 @@ class SimpleBridgeDiscovery:
                 ]
                 avg_retrieved_similarity = np.mean(similarities_to_retrieved)
 
-        # Surprise score: High query similarity, low similarity to retrieved memories
-        # We want to penalize memories that are too similar to already retrieved ones.
-        # A simple formula could be: query_similarity * (1 - avg_retrieved_similarity)
-        surprise = query_similarity * (1 - avg_retrieved_similarity)
+        # Cognitive surprise boost
+        cognitive_surprise_boost = 0.0
+        if candidate.cognitive_dimensions and query_context is not None and len(query_context) == 400:
+            candidate_dims = candidate.cognitive_dimensions.to_dict()
+            # Assuming query_context is 400D, extract its 16D cognitive part
+            query_cognitive_dims_array = query_context[384:]
+            query_cognitive_dims = CognitiveDimensions.from_array(query_cognitive_dims_array).to_dict()
+
+            # Example: If candidate has high social dimension but query is low social
+            if candidate_dims.get("authority", 0) > 0.7 and query_cognitive_dims.get("authority", 0) < 0.3:
+                cognitive_surprise_boost += 0.15
+            if candidate_dims.get("innovation_level", 0) > 0.7 and query_cognitive_dims.get("innovation_level", 0) < 0.3:
+                cognitive_surprise_boost += 0.15
+            if candidate_dims.get("risk_factors", 0) > 0.7 and query_cognitive_dims.get("risk_factors", 0) < 0.3:
+                cognitive_surprise_boost += 0.15
+            # Add more rules based on specific dimension combinations that indicate surprise
+
+        # Surprise score: High query similarity, low similarity to retrieved memories + cognitive boost
+        surprise = query_similarity * (1 - avg_retrieved_similarity) + cognitive_surprise_boost
 
         return float(np.clip(surprise, 0.0, 1.0))
