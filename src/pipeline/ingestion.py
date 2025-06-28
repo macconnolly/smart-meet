@@ -9,13 +9,14 @@ from typing import List, Dict, Optional
 import asyncio
 import logging
 from pathlib import Path
+import json
 
 from src.models.entities import Memory, Meeting, MemoryConnection, ConnectionType
 from src.extraction.memory_extractor import MemoryExtractor
 from src.extraction.dimensions.analyzer import DimensionAnalyzer
 from src.embedding.onnx_encoder import get_encoder
 from src.embedding.vector_manager import VectorManager
-from src.storage.sqlite.repositories import (
+from src.storage.sqlite.sql_repositories import (
     MemoryRepository,
     MeetingRepository,
     ConnectionRepository,
@@ -29,14 +30,6 @@ logger = logging.getLogger(__name__)
 class IngestionPipeline:
     """
     Orchestrates the complete ingestion process.
-
-    TODO Day 5:
-    - [ ] Implement full pipeline flow
-    - [ ] Add error handling and recovery
-    - [ ] Implement batch processing
-    - [ ] Add progress tracking
-    - [ ] Create sequential connections
-    - [ ] Target: <2s for 1-hour transcript
     """
 
     def __init__(self):
@@ -45,6 +38,7 @@ class IngestionPipeline:
         self.dimension_analyzer = DimensionAnalyzer()
         self.encoder = get_encoder()
         self.vector_store = get_vector_store()
+        self.vector_manager = VectorManager()
 
         # Repositories
         db = get_db()
@@ -65,13 +59,7 @@ class IngestionPipeline:
         Returns:
             Dict with ingestion statistics
 
-        TODO Day 5:
-        - [ ] Load transcript
-        - [ ] Extract memories
-        - [ ] Generate embeddings
-        - [ ] Extract dimensions
-        - [ ] Store in databases
-        - [ ] Create connections
+        
         """
         stats = {
             "meeting_id": meeting.id,
@@ -114,17 +102,39 @@ class IngestionPipeline:
         """
         Load transcript from file.
 
-        TODO Day 5:
-        - [ ] Read file content
-        - [ ] Handle different formats
-        - [ ] Validate content
+        Args:
+            transcript_path: Path to transcript file
+
+        Returns:
+            Transcript content as a string.
+
+        Raises:
+            FileNotFoundError: If the transcript file does not exist.
+            ValueError: If the transcript content is empty or invalid.
         """
         path = Path(transcript_path)
         if not path.exists():
             raise FileNotFoundError(f"Transcript not found: {transcript_path}")
 
-        # TODO Day 5: Handle async file reading
-        return path.read_text(encoding="utf-8")
+        content = path.read_text(encoding="utf-8")
+
+        if not content.strip():
+            raise ValueError(f"Transcript file is empty: {transcript_path}")
+
+        # Basic format handling: if it's a JSON file, try to extract a 'text' field
+        if path.suffix.lower() == ".json":
+            try:
+                json_data = json.loads(content)
+                if "text" in json_data:
+                    content = json_data["text"]
+                elif "segments" in json_data: # Common for some transcript formats
+                    content = "\n".join([s.get("text", "") for s in json_data["segments"]])
+                else:
+                    logger.warning(f"JSON transcript {transcript_path} does not contain a 'text' or 'segments' field. Processing raw JSON content.")
+            except json.JSONDecodeError:
+                logger.warning(f"Could not decode JSON from {transcript_path}. Processing as plain text.")
+        
+        return content
 
     async def _process_memory_batch(self, memories: List[Memory], stats: Dict) -> None:
         """
@@ -158,28 +168,22 @@ class IngestionPipeline:
         for i, memory in enumerate(memories):
             try:
                 # Compose vector
-                full_vector = VectorManager.compose_vector(
-                    embeddings[i], {"all": all_dimensions[i]}  # TODO: Proper dimension dict
+                # The VectorManager.compose_vector expects a numpy array for cognitive dimensions
+                # and handles normalization internally.
+                full_vector = self.vector_manager.compose_vector(
+                    embeddings[i], all_dimensions[i]
                 )
+
+                # Update memory with qdrant_id and dimensions_json before storing
+                memory.dimensions_json = json.dumps(all_dimensions[i].tolist())
 
                 # Store in SQLite
-                memory_id = await self.memory_repo.create(memory)
+                await self.memory_repo.create(memory)
 
                 # Store in Qdrant
-                payload = {
-                    "memory_id": memory_id,
-                    "memory_type": memory.memory_type.value,
-                    "speaker": memory.speaker,
-                    "timestamp_ms": memory.timestamp_ms,
-                }
-
-                collection = f"cognitive_{['concepts', 'contexts', 'episodes'][memory.level]}"
-                success = await self.vector_store.store_vector(
-                    collection, memory_id, full_vector, payload
-                )
-
-                if success:
-                    stats["vectors_stored"] += 1
+                # The store_memory method in QdrantVectorStore handles collection and payload creation
+                await self.vector_store.store_memory(memory, full_vector)
+                stats["vectors_stored"] += 1
 
             except Exception as e:
                 logger.error(f"Failed to process memory: {e}")
@@ -189,10 +193,7 @@ class IngestionPipeline:
         """
         Create sequential connections between memories.
 
-        TODO Day 5:
-        - [ ] Connect sequential memories
-        - [ ] Set connection strength by time gap
-        - [ ] Store in database
+        
         """
         connections_created = 0
 

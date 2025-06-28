@@ -80,29 +80,51 @@ class EvolutionaryDimensionExtractor:
             previous_versions: Previous versions of similar content
             
         Returns:
-            EvolutionaryFeatures with 3 dimensions (placeholder values)
+            EvolutionaryFeatures with 3 dimensions
         """
-        # TODO: Implement actual evolutionary dimension extraction
-        # For now, return default values
+        content_lower = content.lower()
+
+        # Change Rate
+        change_rate_score = 0.5
+        change_keywords = ["changed to", "updated", "new version", "revision", "modification", "shift", "transition", "evolved"]
+        for keyword in change_keywords:
+            if keyword in content_lower:
+                change_rate_score += 0.1
         
-        # Placeholder logic: slight variations based on content type
-        change_rate = 0.5
-        innovation_level = 0.5
-        adaptation_need = 0.5
+        if content_type == "change" or content_type == "update":
+            change_rate_score += 0.1
+        if previous_versions and len(previous_versions) > 0:
+            change_rate_score += 0.1 # Indicates a history of changes
+
+        # Innovation Level
+        innovation_level_score = 0.5
+        innovation_keywords = ["new idea", "innovative", "breakthrough", "unique approach", "novel", "creative solution", "pioneer", "disruptive"]
+        for keyword in innovation_keywords:
+            if keyword in content_lower:
+                innovation_level_score += 0.1
         
-        if content_type == "innovation":
-            innovation_level = 0.7
-            change_rate = 0.6
-        elif content_type == "change":
-            change_rate = 0.7
-            adaptation_need = 0.6
-        elif content_type == "improvement":
-            adaptation_need = 0.6
+        if content_type == "innovation" or content_type == "idea":
+            innovation_level_score += 0.1
+
+        # Adaptation Need
+        adaptation_need_score = 0.5
+        adaptation_keywords = ["adapt to", "adjust to", "respond to feedback", "evolve", "pivot", "re-evaluate", "flexible", "learn from"]
+        for keyword in adaptation_keywords:
+            if keyword in content_lower:
+                adaptation_need_score += 0.1
+        
+        if content_type == "issue" or content_type == "feedback":
+            adaptation_need_score += 0.1
+
+        # Normalize scores to be within [0, 1]
+        change_rate_score = np.clip(change_rate_score, 0.0, 1.0)
+        innovation_level_score = np.clip(innovation_level_score, 0.0, 1.0)
+        adaptation_need_score = np.clip(adaptation_need_score, 0.0, 1.0)
             
         return EvolutionaryFeatures(
-            change_rate=change_rate,
-            innovation_level=innovation_level,
-            adaptation_need=adaptation_need
+            change_rate=float(change_rate_score),
+            innovation_level=float(innovation_level_score),
+            adaptation_need=float(adaptation_need_score)
         )
     
     def batch_extract(

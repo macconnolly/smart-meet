@@ -6,7 +6,8 @@ for environment variable management and validation.
 """
 
 from typing import List, Optional, Union
-from pydantic import BaseSettings, Field, validator
+from pydantic import Field, validator
+from pydantic_settings import BaseSettings
 from functools import lru_cache
 import os
 

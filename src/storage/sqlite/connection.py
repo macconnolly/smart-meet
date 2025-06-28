@@ -27,10 +27,13 @@ class DatabaseConnection:
     def __init__(self, db_path: str = "data/memories.db", pool_size: int = 5):
         """Initialize database connection manager."""
         self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        if db_path == ":memory:":
+            self._db_url = db_path
+        else:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            self._db_url = str(self.db_path.absolute())
         self._lock = asyncio.Lock()
         self._executor = ThreadPoolExecutor(max_workers=pool_size)
-        self._db_url = str(self.db_path.absolute())
 
         # Enable foreign keys and WAL mode for better concurrency
         self._init_pragmas = [
@@ -43,14 +46,22 @@ class DatabaseConnection:
 
     def _get_sync_connection(self) -> sqlite3.Connection:
         """Create a new synchronous database connection."""
-        conn = sqlite3.connect(self._db_url, check_same_thread=False)
-        conn.row_factory = sqlite3.Row  # Enable column access by name
+        if self._db_url == ":memory:":
+            if not hasattr(self, '_in_memory_conn') or self._in_memory_conn is None:
+                self._in_memory_conn = sqlite3.connect(self._db_url, check_same_thread=False)
+                self._in_memory_conn.row_factory = sqlite3.Row
+                for pragma in self._init_pragmas:
+                    self._in_memory_conn.execute(pragma)
+            return self._in_memory_conn
+        else:
+            conn = sqlite3.connect(self._db_url, check_same_thread=False)
+            conn.row_factory = sqlite3.Row  # Enable column access by name
 
-        # Apply initialization pragmas
-        for pragma in self._init_pragmas:
-            conn.execute(pragma)
+            # Apply initialization pragmas
+            for pragma in self._init_pragmas:
+                conn.execute(pragma)
 
-        return conn
+            return conn
 
     @contextmanager
     def get_sync_connection(self) -> Generator[sqlite3.Connection, None, None]:
@@ -59,15 +70,16 @@ class DatabaseConnection:
         try:
             yield conn
         finally:
-            conn.close()
+            if self._db_url != ":memory:": # Only close if not in-memory
+                conn.close()
 
-    async def execute_schema(self, schema_path: str = "src/storage/sqlite/schema.sql") -> None:
+    async def execute_schema(self) -> None:
         """
         Execute the database schema.
         """
-        schema_file = Path(schema_path)
+        schema_file = Path(__file__).parent / "schema.sql"
         if not schema_file.exists():
-            raise FileNotFoundError(f"Schema file not found: {schema_path}")
+            raise FileNotFoundError(f"Schema file not found: {schema_file}")
 
         schema_sql = schema_file.read_text()
 

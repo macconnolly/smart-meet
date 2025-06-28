@@ -8,7 +8,7 @@ This module provides:
 - Embedding engine for batch processing
 """
 
-from .onnx_encoder import ONNXEncoder, get_onnx_encoder
+from .onnx_encoder import ONNXEncoder, get_encoder
 from .vector_manager import VectorManager, get_vector_manager, VectorStats
 from .vector_validation import VectorValidator, get_vector_validator, ValidationResult
 from .engine import EmbeddingEngine

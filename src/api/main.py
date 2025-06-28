@@ -114,6 +114,7 @@ def create_app() -> FastAPI:
 
     # Include routers
     app.include_router(memories.router, prefix="/api/v2", tags=["memories"])
+    app.include_router(cognitive.router, prefix="/api/v2", tags=["cognitive"])
 
     # Root endpoint
     @app.get("/", tags=["root"])

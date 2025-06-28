@@ -48,9 +48,9 @@ CREATE TABLE IF NOT EXISTS meetings (
     is_recurring BOOLEAN DEFAULT FALSE,
     recurring_series_id TEXT,
     start_time DATETIME NOT NULL,
-    end_time DATETIME NOT NULL,
+    end_time DATETIME,
     participants_json TEXT NOT NULL,  -- Enhanced with roles
-    transcript_path TEXT NOT NULL,
+    transcript_path TEXT,
     agenda_json TEXT,
     key_decisions_json TEXT,
     action_items_json TEXT,
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS memories (
     
     -- Vector and cognitive fields
     level INTEGER NOT NULL CHECK(level IN (0,1,2)),
-    qdrant_id TEXT NOT NULL UNIQUE,
+    qdrant_id TEXT UNIQUE,
     dimensions_json TEXT NOT NULL,
     
     -- Lifecycle

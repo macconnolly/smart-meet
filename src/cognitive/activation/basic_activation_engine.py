@@ -27,12 +27,32 @@ class ActivationResult:
         self.core_memories: List[Memory] = []
         self.peripheral_memories: List[Memory] = []
         self.activation_strengths: Dict[str, float] = {}
+        self.activation_paths: Dict[str, List[str]] = {} # Stores the path of activation for each memory
+        self.activation_explanations: Dict[str, str] = {} # Stores explanations for activated memories
         self.activation_time_ms: float = 0.0
         self.total_activated: int = 0
         
     @property
     def total_activated(self) -> int:
         return len(self.core_memories) + len(self.peripheral_memories)
+
+    def add_activated_memory(
+        self,
+        memory: Memory,
+        strength: float,
+        path: List[str],
+        explanation: str,
+        core_threshold: float,
+        peripheral_threshold: float
+    ):
+        self.activation_strengths[memory.id] = strength
+        self.activation_paths[memory.id] = path
+        self.activation_explanations[memory.id] = explanation
+
+        if strength >= core_threshold:
+            self.core_memories.append(memory)
+        elif strength >= peripheral_threshold:
+            self.peripheral_memories.append(memory)
 
 
 class BasicActivationEngine:
@@ -76,7 +96,7 @@ class BasicActivationEngine:
     async def activate_memories(
         self, 
         context: np.ndarray, 
-        threshold: float, 
+        threshold: float,
         max_activations: int = 50,
         project_id: Optional[str] = None
     ) -> ActivationResult:
@@ -84,10 +104,11 @@ class BasicActivationEngine:
         Activate memories based on context with spreading activation.
 
         Implementation follows the algorithm specification:
-        1. Find high-similarity L0 concepts as starting points
-        2. Use BFS to spread activation through connection graph
+        1. Find high-similarity L0 concepts as starting points (Phase 1)
+        2. Use BFS to spread activation through connection graph (Phase 2)
         3. Apply threshold-based filtering to limit computational overhead
         4. Track activation strength for result ranking
+        5. Generate explanations for activated memories
 
         Args:
             context: Context vector for similarity computation
@@ -134,6 +155,155 @@ class BasicActivationEngine:
             logger.error("Memory activation failed", error=str(e))
             result.activation_time_ms = (time.time() - start_time) * 1000
             return result
+
+    async def _bfs_activation(
+        self,
+        context: np.ndarray,
+        starting_memories: List[Memory],
+        threshold: float,
+        max_activations: int,
+        project_id: Optional[str] = None
+    ) -> ActivationResult:
+        """
+        Perform BFS traversal to activate connected memories.
+
+        Args:
+            context: Context vector for similarity computation
+            starting_memories: Starting memories for BFS
+            threshold: Minimum activation threshold
+            max_activations: Maximum number of memories to activate
+            project_id: Optional project filter
+
+        Returns:
+            ActivationResult with activated memories
+        """
+        result = ActivationResult()
+        
+        # Initialize BFS structures
+        queue = deque([(m, 1.0, 0, [m.id]) for m in starting_memories])  # (memory, strength, depth, path)
+        activated_ids: Set[str] = set()
+        
+        # Process starting memories
+        for memory in starting_memories:
+            activated_ids.add(memory.id)
+            explanation = self._generate_activation_explanation(memory, 1.0, [])
+            result.add_activated_memory(memory, 1.0, [memory.id], explanation, self.core_threshold, self.peripheral_threshold)
+
+        # BFS traversal through connection graph
+        while queue and len(activated_ids) < max_activations:
+            current_memory, current_strength, depth, path = queue.popleft()
+            
+            # Get connected memories
+            connections = await self.connection_repo.get_connections_for_memory(
+                current_memory.id,
+                min_strength=self.peripheral_threshold
+            )
+            
+            for connection in connections:
+                target_id = connection.target_id if connection.source_id == current_memory.id else connection.source_id
+                
+                if target_id not in activated_ids:
+                    # Get the connected memory
+                    connected_memory = await self.memory_repo.get_by_id(target_id)
+                    if not connected_memory:
+                        continue
+                        
+                    # Apply project filter if specified
+                    if project_id and connected_memory.project_id != project_id:
+                        continue
+                    
+                    # Calculate activation strength with decay
+                    strength = current_strength * self.decay_factor * connection.connection_strength
+                    
+                    # Apply threshold filtering
+                    if strength >= threshold:
+                        activated_ids.add(target_id)
+                        new_path = path + [target_id]
+                        explanation = self._generate_activation_explanation(connected_memory, strength, new_path)
+                        result.add_activated_memory(connected_memory, strength, new_path, explanation, self.core_threshold, self.peripheral_threshold)
+                        
+                        # Add to queue for further traversal
+                        queue.append((connected_memory, strength, depth + 1, new_path))
+                        
+                        # Check activation limit
+                        if len(activated_ids) >= max_activations:
+                            break
+
+        # Sort memories by activation strength
+        result.core_memories.sort(
+            key=lambda m: result.activation_strengths.get(m.id, 0.0), 
+            reverse=True
+        )
+        result.peripheral_memories.sort(
+            key=lambda m: result.activation_strengths.get(m.id, 0.0), 
+            reverse=True
+        )
+
+        return result
+
+    def _generate_activation_explanation(
+        self,
+        memory: Memory,
+        strength: float,
+        path: List[str]
+    ) -> str:
+        """
+        Generates a human-readable explanation for why a memory was activated.
+        """
+        explanation_parts = []
+
+        if not path or len(path) == 1: # Starting memory
+            explanation_parts.append(f"This memory was directly activated as a starting point.")
+        else:
+            explanation_parts.append(f"This memory was activated through its connection to memory '{path[-2]}'.")
+        
+        explanation_parts.append(f"It has an activation strength of {strength:.2f}.")
+
+        if memory.memory_type:
+            explanation_parts.append(f"It is a '{memory.memory_type}' type memory.")
+        if memory.speaker:
+            explanation_parts.append(f"It was contributed by '{memory.speaker}'.")
+        if memory.timestamp_ms:
+            explanation_parts.append(f"It occurred around {time.ctime(memory.timestamp_ms / 1000)}.")
+        if memory.project_id:
+            explanation_parts.append(f"It is associated with project '{memory.project_id}'.")
+
+        return " ".join(explanation_parts)
+
+    async def _find_starting_memories(
+        self,
+        context: np.ndarray,
+        threshold: float,
+        project_id: Optional[str] = None
+    ) -> List[Memory]:
+        """
+        Find L0 memories with high similarity to context as starting points.
+
+        Args:
+            context: Context vector for similarity computation
+            threshold: Minimum similarity threshold
+            project_id: Optional project filter
+
+        Returns:
+            List of starting memories for activation
+        """
+        # Phase 1: Search L0 concepts in Qdrant
+        search_results = await self.vector_store.search(
+            query_vector=context.tolist(),
+            collection_name="L0_cognitive_concepts",
+            limit=10,  # Get top 10 L0 concepts
+            score_threshold=threshold,
+            filter_conditions={"project_id": project_id} if project_id else None
+        )
+        
+        starting_memories = []
+        for result in search_results:
+            memory = await self.memory_repo.get_by_id(result.id)
+            if memory and memory.level == 0:
+                starting_memories.append(memory)
+                
+        logger.debug(f"Found {len(starting_memories)} starting memories from L0 concepts")
+        return starting_memories
 
     async def _find_starting_memories(
         self,

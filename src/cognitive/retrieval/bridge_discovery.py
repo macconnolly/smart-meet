@@ -23,6 +23,7 @@ class BridgeMemory:
     memory: Memory
     novelty_score: float
     connection_potential: float
+    surprise_score: float
     bridge_score: float
     explanation: str
     connected_concepts: List[str]
@@ -237,10 +238,18 @@ class SimpleBridgeDiscovery:
                 retrieved_memories
             )
 
+            # Calculate surprise score
+            surprise_score = self._calculate_surprise_score(
+                candidate,
+                query_context,
+                retrieved_memories
+            )
+
             # Calculate bridge score
             bridge_score = (
                 self.novelty_weight * novelty_score +
-                self.connection_weight * connection_potential
+                self.connection_weight * connection_potential +
+                surprise_score # Add surprise score to bridge score
             )
 
             # Generate explanation
@@ -248,6 +257,7 @@ class SimpleBridgeDiscovery:
                 candidate,
                 novelty_score,
                 connection_potential,
+                surprise_score,
                 retrieved_memories
             )
 
@@ -261,6 +271,7 @@ class SimpleBridgeDiscovery:
                 memory=candidate,
                 novelty_score=novelty_score,
                 connection_potential=connection_potential,
+                surprise_score=surprise_score,
                 bridge_score=bridge_score,
                 explanation=explanation,
                 connected_concepts=connected_concepts
@@ -462,6 +473,7 @@ class SimpleBridgeDiscovery:
         candidate: Memory,
         novelty_score: float,
         connection_potential: float,
+        surprise_score: float,
         retrieved_memories: List[Memory],
     ) -> str:
         """Generate human-readable explanation for why this is a bridge."""
@@ -478,6 +490,12 @@ class SimpleBridgeDiscovery:
             explanations.append("strongly connects multiple concepts")
         elif connection_potential > 0.5:
             explanations.append("links related ideas")
+
+        # Surprise explanation
+        if surprise_score > 0.7:
+            explanations.append("is highly unexpected")
+        elif surprise_score > 0.5:
+            explanations.append("offers a surprising connection")
 
         # Specific connections
         shared_count = self._count_shared_entities(candidate, retrieved_memories)
@@ -567,3 +585,43 @@ class SimpleBridgeDiscovery:
             "min_bridge_score": self.min_bridge_score,
             "algorithm": "simple_distance_inversion",
         }
+
+    def _calculate_surprise_score(
+        self,
+        candidate: Memory,
+        query_context: np.ndarray,
+        retrieved_memories: List[Memory],
+    ) -> float:
+        """
+        Calculate how surprising a memory is given the context and retrieved memories.
+        A memory is surprising if it's not too similar to already retrieved memories
+        but still somewhat relevant to the query context.
+        """
+        if not hasattr(candidate, 'vector_embedding') or candidate.vector_embedding is None:
+            return 0.0
+
+        candidate_vector = candidate.vector_embedding
+
+        # Similarity to query context (higher is better)
+        query_similarity = self._compute_cosine_similarity(candidate_vector, query_context)
+
+        # Average similarity to retrieved memories (lower is better for surprise)
+        if not retrieved_memories:
+            avg_retrieved_similarity = 0.0
+        else:
+            retrieved_vectors = [m.vector_embedding for m in retrieved_memories if hasattr(m, 'vector_embedding') and m.vector_embedding is not None]
+            if not retrieved_vectors:
+                avg_retrieved_similarity = 0.0
+            else:
+                similarities_to_retrieved = [
+                    self._compute_cosine_similarity(candidate_vector, rv)
+                    for rv in retrieved_vectors
+                ]
+                avg_retrieved_similarity = np.mean(similarities_to_retrieved)
+
+        # Surprise score: High query similarity, low similarity to retrieved memories
+        # We want to penalize memories that are too similar to already retrieved ones.
+        # A simple formula could be: query_similarity * (1 - avg_retrieved_similarity)
+        surprise = query_similarity * (1 - avg_retrieved_similarity)
+
+        return float(np.clip(surprise, 0.0, 1.0))

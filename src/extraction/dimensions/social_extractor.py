@@ -82,28 +82,57 @@ class SocialDimensionExtractor:
             content_type: Type of content
             
         Returns:
-            SocialFeatures with 3 dimensions (placeholder values)
+            SocialFeatures with 3 dimensions
         """
-        # TODO: Implement actual social dimension extraction
-        # For now, return default values
+        content_lower = content.lower()
+
+        # Authority
+        authority_score = 0.5
+        authority_keywords = ["decided by", "approved by", "responsible for", "mandate", "lead", "manager", "director", "head of"]
+        for keyword in authority_keywords:
+            if keyword in content_lower:
+                authority_score += 0.1
         
-        # Placeholder logic: slight variations based on content type
-        authority = 0.5
-        influence = 0.5
-        team_dynamics = 0.5
+        if speaker_role:
+            if "manager" in speaker_role.lower() or "lead" in speaker_role.lower() or "director" in speaker_role.lower():
+                authority_score += 0.2
+            elif "executive" in speaker_role.lower() or "ceo" in speaker_role.lower():
+                authority_score += 0.3
         
         if content_type == "decision":
-            authority = 0.6
-            influence = 0.6
-        elif content_type == "action":
-            influence = 0.6
-        elif content_type == "question":
-            authority = 0.4
+            authority_score += 0.1
+
+        # Influence
+        influence_score = 0.5
+        influence_keywords = ["suggested", "convinced", "led to", "proposed", "recommend", "persuaded", "advocated"]
+        for keyword in influence_keywords:
+            if keyword in content_lower:
+                influence_score += 0.1
+        
+        if content_type == "action":
+            influence_score += 0.1
+
+        # Team Dynamics
+        team_dynamics_score = 0.5
+        positive_team_keywords = ["team", "collaboration", "working together", "consensus", "agreement", "support", "aligned"]
+        negative_team_keywords = ["disagreement", "conflict", "issue", "blocker"]
+
+        for keyword in positive_team_keywords:
+            if keyword in content_lower:
+                team_dynamics_score += 0.05
+        for keyword in negative_team_keywords:
+            if keyword in content_lower:
+                team_dynamics_score -= 0.05
+        
+        # Normalize scores to be within [0, 1]
+        authority_score = np.clip(authority_score, 0.0, 1.0)
+        influence_score = np.clip(influence_score, 0.0, 1.0)
+        team_dynamics_score = np.clip(team_dynamics_score, 0.0, 1.0)
             
         return SocialFeatures(
-            authority=authority,
-            influence=influence,
-            team_dynamics=team_dynamics
+            authority=float(authority_score),
+            influence=float(influence_score),
+            team_dynamics=float(team_dynamics_score)
         )
     
     def batch_extract(

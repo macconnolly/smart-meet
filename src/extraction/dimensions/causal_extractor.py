@@ -78,29 +78,51 @@ class CausalDimensionExtractor:
             linked_memories: IDs of related memories
             
         Returns:
-            CausalFeatures with 3 dimensions (placeholder values)
+            CausalFeatures with 3 dimensions
         """
-        # TODO: Implement actual causal dimension extraction
-        # For now, return default values
+        content_lower = content.lower()
+
+        # Dependencies
+        dependencies_score = 0.5
+        dependency_keywords = ["depends on", "prerequisite", "blocked by", "contingent on", "requires"]
+        for keyword in dependency_keywords:
+            if keyword in content_lower:
+                dependencies_score += 0.1
         
-        # Placeholder logic: slight variations based on content type
-        dependencies = 0.5
-        impact = 0.5
-        risk_factors = 0.5
+        if content_type == "action":
+            dependencies_score += 0.1 # Actions often have dependencies
+        if linked_memories and len(linked_memories) > 0:
+            dependencies_score += 0.1 # Presence of linked memories suggests dependencies
+
+        # Impact
+        impact_score = 0.5
+        impact_keywords = ["resulted in", "led to", "impact on", "consequence", "affect", "outcome", "implication"]
+        for keyword in impact_keywords:
+            if keyword in content_lower:
+                impact_score += 0.1
         
-        if content_type == "risk":
-            risk_factors = 0.7
-            impact = 0.6
-        elif content_type == "dependency":
-            dependencies = 0.7
-        elif content_type == "blocker":
-            dependencies = 0.8
-            risk_factors = 0.7
+        if content_type == "decision":
+            impact_score += 0.1 # Decisions often have significant impact
+
+        # Risk Factors
+        risk_factors_score = 0.5
+        risk_keywords = ["risk", "challenge", "concern", "potential issue", "threat", "vulnerability", "bottleneck"]
+        for keyword in risk_keywords:
+            if keyword in content_lower:
+                risk_factors_score += 0.1
+        
+        if content_type == "issue":
+            risk_factors_score += 0.1 # Issues are inherently risky
+
+        # Normalize scores to be within [0, 1]
+        dependencies_score = np.clip(dependencies_score, 0.0, 1.0)
+        impact_score = np.clip(impact_score, 0.0, 1.0)
+        risk_factors_score = np.clip(risk_factors_score, 0.0, 1.0)
             
         return CausalFeatures(
-            dependencies=dependencies,
-            impact=impact,
-            risk_factors=risk_factors
+            dependencies=float(dependencies_score),
+            impact=float(impact_score),
+            risk_factors=float(risk_factors_score)
         )
     
     def batch_extract(

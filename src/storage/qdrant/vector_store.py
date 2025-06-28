@@ -34,7 +34,7 @@ try:
 except ImportError:
     raise ImportError("Qdrant client not installed. Please install: pip install qdrant-client")
 
-from ..models.entities import Memory, Vector
+from ...models.entities import Memory, Vector
 
 logger = logging.getLogger(__name__)
 
