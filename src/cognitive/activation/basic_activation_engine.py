@@ -17,7 +17,7 @@ from loguru import logger
 
 from ...models.entities import Memory, MemoryConnection
 from ...storage.sqlite.repositories import MemoryRepository, MemoryConnectionRepository
-from ...storage.qdrant.vector_store import QdrantVectorStore
+from ...storage.qdrant.vector_store import QdrantVectorStore, SearchFilter
 
 
 class ActivationResult:
@@ -268,77 +268,25 @@ class BasicActivationEngine:
         if memory.project_id:
             explanation_parts.append(f"It is associated with project '{memory.project_id}'.")
 
+        # Add details from enhanced cognitive dimensions
+        if memory.cognitive_dimensions:
+            dims = memory.cognitive_dimensions.to_dict()
+            if dims.get("urgency", 0) > 0.7:
+                explanation_parts.append(f"It is a highly urgent memory (urgency: {dims["urgency"]:.2f}).")
+            if dims.get("impact", 0) > 0.7:
+                explanation_parts.append(f"It highlights a significant impact (impact: {dims["impact"]:.2f}).")
+            if dims.get("authority", 0) > 0.7:
+                explanation_parts.append(f"It comes from an authoritative source (authority: {dims["authority"]:.2f}).")
+            if dims.get("innovation_level", 0) > 0.7:
+                explanation_parts.append(f"It represents a high level of innovation (innovation: {dims["innovation_level"]:.2f}).")
+            if dims.get("risk_factors", 0) > 0.7:
+                explanation_parts.append(f"It carries significant risk (risk: {dims["risk_factors"]:.2f}).")
+            if dims.get("dependencies", 0) > 0.7:
+                explanation_parts.append(f"It highlights important dependencies (dependencies: {dims["dependencies"]:.2f}).")
+
         return " ".join(explanation_parts)
 
-    async def _find_starting_memories(
-        self,
-        context: np.ndarray,
-        threshold: float,
-        project_id: Optional[str] = None
-    ) -> List[Memory]:
-        """
-        Find L0 memories with high similarity to context as starting points.
-
-        Args:
-            context: Context vector for similarity computation
-            threshold: Minimum similarity threshold
-            project_id: Optional project filter
-
-        Returns:
-            List of starting memories for activation
-        """
-        # Phase 1: Search L0 concepts in Qdrant
-        search_results = await self.vector_store.search(
-            query_vector=context.tolist(),
-            collection_name="L0_cognitive_concepts",
-            limit=10,  # Get top 10 L0 concepts
-            score_threshold=threshold,
-            filter_conditions={"project_id": project_id} if project_id else None
-        )
-        
-        starting_memories = []
-        for result in search_results:
-            memory = await self.memory_repo.get_by_id(result.id)
-            if memory and memory.level == 0:
-                starting_memories.append(memory)
-                
-        logger.debug(f"Found {len(starting_memories)} starting memories from L0 concepts")
-        return starting_memories
-
-    async def _find_starting_memories(
-        self,
-        context: np.ndarray,
-        threshold: float,
-        project_id: Optional[str] = None
-    ) -> List[Memory]:
-        """
-        Find L0 memories with high similarity to context as starting points.
-
-        Args:
-            context: Context vector for similarity computation
-            threshold: Minimum similarity threshold
-            project_id: Optional project filter
-
-        Returns:
-            List of starting memories for activation
-        """
-        # Search L0 concepts in Qdrant
-        search_results = await self.vector_store.search(
-            query_vector=context.tolist(),
-            collection_name="L0_cognitive_concepts",
-            limit=10,  # Get top 10 L0 concepts
-            score_threshold=threshold,
-            filter_conditions={"project_id": project_id} if project_id else None
-        )
-        
-        starting_memories = []
-        for result in search_results:
-            memory = await self.memory_repo.get_by_id(result.id)
-            if memory and memory.level == 0:
-                starting_memories.append(memory)
-                
-        logger.debug(f"Found {len(starting_memories)} starting memories from L0 concepts")
-        return starting_memories
+    
 
     async def _bfs_activation(
         self,
