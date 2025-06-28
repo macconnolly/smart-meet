@@ -1,0 +1,147 @@
+# Makefile for Cognitive Meeting Intelligence Testing
+# Provides convenient commands for testing and development
+
+.PHONY: help test test-unit test-integration test-performance test-all \
+        coverage coverage-html clean install-dev lint format type-check \
+        test-watch test-failed docker-up docker-down
+
+# Default target
+help:
+	@echo "Cognitive Meeting Intelligence - Test Commands"
+	@echo "============================================="
+	@echo ""
+	@echo "Testing:"
+	@echo "  make test              Run unit tests (fast)"
+	@echo "  make test-unit         Run unit tests with coverage"
+	@echo "  make test-integration  Run integration tests"
+	@echo "  make test-performance  Run performance tests"
+	@echo "  make test-all          Run all tests"
+	@echo "  make test-watch        Run tests in watch mode"
+	@echo "  make test-failed       Re-run failed tests"
+	@echo ""
+	@echo "Coverage:"
+	@echo "  make coverage          Run tests with coverage report"
+	@echo "  make coverage-html     Generate HTML coverage report"
+	@echo ""
+	@echo "Code Quality:"
+	@echo "  make lint              Run linting (flake8)"
+	@echo "  make format            Format code (black)"
+	@echo "  make type-check        Run type checking (mypy)"
+	@echo "  make quality           Run all quality checks"
+	@echo ""
+	@echo "Environment:"
+	@echo "  make install-dev       Install development dependencies"
+	@echo "  make docker-up         Start required services"
+	@echo "  make docker-down       Stop services"
+	@echo "  make clean             Clean generated files"
+
+# Installation
+install-dev:
+	pip install -r requirements.txt
+	pip install -r requirements-dev.txt
+	python -c "import nltk; nltk.download('vader_lexicon')"
+	@echo "✅ Development dependencies installed"
+
+# Basic testing
+test:
+	pytest tests/unit -v
+
+test-unit:
+	pytest tests/unit -v --cov=src --cov-report=term-missing
+
+test-integration:
+	@echo "Checking if Qdrant is running..."
+	@curl -s http://localhost:6333/collections > /dev/null || (echo "❌ Qdrant not running. Run: make docker-up" && exit 1)
+	pytest tests/integration -v -m integration
+
+test-performance:
+	pytest -m performance -v --tb=short
+
+test-all:
+	pytest -v
+
+# Coverage
+coverage:
+	pytest --cov=src --cov-report=term-missing --cov-report=html
+	@echo "✅ Coverage report generated in htmlcov/"
+
+coverage-html: coverage
+	@python -m webbrowser htmlcov/index.html
+
+# Test utilities
+test-watch:
+	pytest-watch tests/unit -- -v
+
+test-failed:
+	pytest --lf -v
+
+test-specific:
+	@read -p "Enter test path: " test_path; \
+	pytest $$test_path -v
+
+# Code quality
+lint:
+	flake8 src tests --max-line-length=100 --extend-ignore=E203,W503
+
+format:
+	black src tests --line-length=100
+
+type-check:
+	mypy src --ignore-missing-imports
+
+quality: lint type-check
+	@echo "✅ Code quality checks passed"
+
+# Docker services
+docker-up:
+	docker-compose up -d
+	@echo "Waiting for Qdrant to be ready..."
+	@for i in {1..30}; do \
+		curl -s http://localhost:6333/collections > /dev/null && break || sleep 1; \
+	done
+	@echo "✅ Services started"
+
+docker-down:
+	docker-compose down
+	@echo "✅ Services stopped"
+
+# Cleaning
+clean:
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	find . -type f -name "*.pyc" -delete
+	rm -rf htmlcov .coverage .pytest_cache
+	rm -rf .mypy_cache .tox
+	rm -f tests.log
+	@echo "✅ Cleaned generated files"
+
+# Test database
+test-db:
+	python scripts/create_test_db.py
+	@echo "✅ Test database created"
+
+# Continuous Integration simulation
+ci: clean install-dev docker-up
+	@echo "Running CI pipeline..."
+	make quality
+	make test-unit
+	make test-integration
+	make coverage
+	@echo "✅ CI pipeline complete"
+
+# Quick test for development
+quick: test-unit
+	@echo "✅ Quick tests passed"
+
+# Full test suite with report
+full-test: clean docker-up
+	@echo "Running full test suite..."
+	pytest -v --tb=short --cov=src \
+		--cov-report=term-missing \
+		--cov-report=html \
+		--cov-report=xml \
+		--junit-xml=test-results.xml
+	@echo "✅ Full test suite complete"
+	@echo "Reports:"
+	@echo "  - Coverage HTML: htmlcov/index.html"
+	@echo "  - Coverage XML: coverage.xml"
+	@echo "  - JUnit XML: test-results.xml"

@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cognitive Meeting Intelligence</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 0;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+
+        .btn:hover {
+            background: #5a67d8;
+        }
+
+        .btn-secondary {
+            background: #48bb78;
+        }
+
+        .btn-secondary:hover {
+            background: #38a169;
+        }
+
+        .results {
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .memory-item {
+            background: #f7fafc;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+
+        .memory-speaker {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .memory-content {
+            color: #4a5568;
+        }
+
+        .memory-meta {
+            font-size: 0.9em;
+            color: #718096;
+            margin-top: 5px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #718096;
+            margin-top: 5px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #718096;
+        }
+
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        .bridge-item {
+            background: #e6fffa;
+            border-left: 4px solid #48bb78;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+
+        .bridge-score {
+            float: right;
+            background: #48bb78;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 15px;
+            font-size: 0.9em;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>🧠 Cognitive Meeting Intelligence</h1>
+            <p class="subtitle">Transform meetings into queryable cognitive networks</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <h2>System Statistics</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="total-memories">0</div>
+                    <div class="stat-label">Total Memories</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="total-meetings">0</div>
+                    <div class="stat-label">Meetings</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="connections">0</div>
+                    <div class="stat-label">Connections</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="api-status">🟢</div>
+                    <div class="stat-label">API Status</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div class="card">
+                <h2>Cognitive Search</h2>
+                <input type="text" class="search-box" id="search-input" 
+                       placeholder="e.g., What was decided about caching?">
+                <button class="btn" onclick="performSearch()">Search Memories</button>
+                <button class="btn btn-secondary" onclick="discoverBridges()">Discover Bridges</button>
+                
+                <div class="tabs">
+                    <div class="tab active" onclick="switchTab('search')">Search Results</div>
+                    <div class="tab" onclick="switchTab('bridges')">Bridge Connections</div>
+                </div>
+                
+                <div id="search-results" class="results tab-content active">
+                    <div class="loading">Enter a query to search memories...</div>
+                </div>
+                
+                <div id="bridge-results" class="results tab-content">
+                    <div class="loading">Discover bridge connections between memories...</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Quick Actions</h2>
+                
+                <h3 style="margin-bottom: 15px;">Load Sample Meeting</h3>
+                <button class="btn" onclick="loadSampleMeeting()">Load Demo Transcript</button>
+                
+                <h3 style="margin: 20px 0 15px;">Paste Meeting Transcript</h3>
+                <textarea id="transcript-input" style="width: 100%; height: 150px; padding: 10px; 
+                         border: 2px solid #ddd; border-radius: 5px; font-family: monospace;"
+                         placeholder="[00:00] Speaker: Content..."></textarea>
+                <button class="btn btn-secondary" onclick="ingestTranscript()">Process Transcript</button>
+                
+                <h3 style="margin: 20px 0 15px;">System Health</h3>
+                <div id="health-status">
+                    <div class="loading">Checking system health...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        // Load system stats on page load
+        window.onload = function() {
+            updateStats();
+            checkHealth();
+            setInterval(updateStats, 5000); // Update every 5 seconds
+        };
+
+        async function updateStats() {
+            try {
+                const response = await fetch(`${API_BASE}/api/v2/stats`);
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('total-memories').textContent = data.total_memories || '0';
+                    document.getElementById('total-meetings').textContent = data.total_meetings || '0';
+                    document.getElementById('connections').textContent = data.total_connections || '0';
+                }
+            } catch (error) {
+                console.error('Failed to update stats:', error);
+            }
+        }
+
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const statusEl = document.getElementById('api-status');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    statusEl.textContent = data.status === 'healthy' ? '🟢' : '🟡';
+                    
+                    const healthHtml = `
+                        <div style="color: #48bb78;">✅ System Healthy</div>
+                        <div style="margin-top: 10px; font-size: 0.9em; color: #718096;">
+                            <div>Database: ${data.database ? '✓' : '✗'}</div>
+                            <div>Vector Store: ${data.vector_store ? '✓' : '✗'}</div>
+                            <div>Encoder: ${data.encoder ? '✓' : '✗'}</div>
+                        </div>
+                    `;
+                    document.getElementById('health-status').innerHTML = healthHtml;
+                } else {
+                    statusEl.textContent = '🔴';
+                    document.getElementById('health-status').innerHTML = 
+                        '<div class="error">API is not responding</div>';
+                }
+            } catch (error) {
+                document.getElementById('api-status').textContent = '🔴';
+                document.getElementById('health-status').innerHTML = 
+                    '<div class="error">Cannot connect to API at ' + API_BASE + '</div>';
+            }
+        }
+
+        async function performSearch() {
+            const query = document.getElementById('search-input').value;
+            if (!query) return;
+            
+            const resultsDiv = document.getElementById('search-results');
+            resultsDiv.innerHTML = '<div class="loading">Searching...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v2/cognitive/search`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: query,
+                        use_activation: true,
+                        max_results: 10
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    displaySearchResults(data);
+                } else {
+                    resultsDiv.innerHTML = '<div class="error">Search failed</div>';
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = '<div class="error">Network error: ' + error.message + '</div>';
+            }
+        }
+
+        function displaySearchResults(data) {
+            const resultsDiv = document.getElementById('search-results');
+            
+            if (!data.core_memories || data.core_memories.length === 0) {
+                resultsDiv.innerHTML = '<div class="loading">No memories found</div>';
+                return;
+            }
+            
+            let html = `<div style="margin-bottom: 10px; color: #718096;">
+                        Found ${data.core_memories.length} core memories</div>`;
+            
+            data.core_memories.forEach(memory => {
+                html += `
+                    <div class="memory-item">
+                        <div class="memory-speaker">${memory.speaker}</div>
+                        <div class="memory-content">${memory.content}</div>
+                        <div class="memory-meta">
+                            Type: ${memory.content_type} | 
+                            Score: ${memory.activation_score?.toFixed(3) || 'N/A'}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            resultsDiv.innerHTML = html;
+        }
+
+        async function discoverBridges() {
+            const query = document.getElementById('search-input').value;
+            if (!query) return;
+            
+            switchTab('bridges');
+            const resultsDiv = document.getElementById('bridge-results');
+            resultsDiv.innerHTML = '<div class="loading">Discovering bridges...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v2/bridges/discover`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: query,
+                        max_bridges: 5,
+                        min_novelty: 0.3
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    displayBridgeResults(data);
+                } else {
+                    resultsDiv.innerHTML = '<div class="error">Bridge discovery failed</div>';
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = '<div class="error">Network error: ' + error.message + '</div>';
+            }
+        }
+
+        function displayBridgeResults(data) {
+            const resultsDiv = document.getElementById('bridge-results');
+            
+            if (!data.bridges || data.bridges.length === 0) {
+                resultsDiv.innerHTML = '<div class="loading">No bridge connections found</div>';
+                return;
+            }
+            
+            let html = `<div style="margin-bottom: 10px; color: #718096;">
+                        Discovered ${data.bridges.length} bridge connections</div>`;
+            
+            data.bridges.forEach(bridge => {
+                html += `
+                    <div class="bridge-item">
+                        <span class="bridge-score">${(bridge.score * 100).toFixed(0)}%</span>
+                        <div style="font-weight: bold; margin-bottom: 10px;">
+                            ${bridge.source_memory.speaker} ↔ ${bridge.target_memory.speaker}
+                        </div>
+                        <div style="margin-bottom: 5px;">
+                            <strong>From:</strong> ${bridge.source_memory.content}
+                        </div>
+                        <div style="margin-bottom: 5px;">
+                            <strong>To:</strong> ${bridge.target_memory.content}
+                        </div>
+                        <div style="color: #718096; font-size: 0.9em;">
+                            ${bridge.explanation}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            resultsDiv.innerHTML = html;
+        }
+
+        function switchTab(tab) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(tab + '-results').classList.add('active');
+        }
+
+        function loadSampleMeeting() {
+            const sampleTranscript = `[00:00] John: Good morning everyone. Let's discuss our Q4 roadmap.
+[00:15] Sarah: I think we should prioritize the caching system. It's critical for performance.
+[00:30] Mike: I agree. We also need to fix the authentication bug by next Friday.
+[00:45] John: What about the new AI features? Our competitors are moving fast.
+[01:00] Sarah: The AI features are important but we need the infrastructure first.
+[01:15] Mike: I'm worried about the technical debt. We should allocate time for refactoring.
+[01:30] John: Let's make a decision. Priority 1: caching system. Priority 2: auth bug. Priority 3: AI features.
+[01:45] Sarah: Sounds good. I'll lead the caching implementation.
+[02:00] Mike: I'll handle the auth bug fix.
+[02:15] John: Great. Let's reconvene next week to check progress.`;
+            
+            document.getElementById('transcript-input').value = sampleTranscript;
+            alert('Sample meeting loaded! Click "Process Transcript" to ingest it.');
+        }
+
+        async function ingestTranscript() {
+            const transcript = document.getElementById('transcript-input').value;
+            if (!transcript) return;
+            
+            alert('Transcript processing would happen here. This requires backend implementation.');
+            // TODO: Implement actual ingestion endpoint
+        }
+    </script>
+</body>
+</html>
