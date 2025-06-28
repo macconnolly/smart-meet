@@ -12,9 +12,8 @@ import numpy as np
 from dataclasses import dataclass
 import json
 
-from ..models.entities import Vector
-from ..extraction.dimensions.dimension_analyzer import CognitiveDimensions
-from ..extraction.dimensions.analyzer import CognitiveDimensions
+from src.models.entities import Vector
+from src.extraction.dimensions.dimension_analyzer import CognitiveDimensions
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +69,7 @@ class VectorManager:
 
     def compose_vector(
         self, semantic_embedding: np.ndarray, cognitive_dimensions: CognitiveDimensions
-    ) -> Vector:
+    ) -> np.ndarray:
         """
         Composes a 400D vector from a 384D semantic embedding and 16D cognitive dimensions.
 
@@ -87,12 +86,11 @@ class VectorManager:
         if semantic_embedding.shape != (384,):
             raise ValueError(f"Semantic embedding must be 384D, got {semantic_embedding.shape}")
 
-        # Ensure cognitive_dimensions is converted to a numpy array
         cognitive_array = cognitive_dimensions.to_array()
         if cognitive_array.shape != (16,):
             raise ValueError(f"Cognitive dimensions must be 16D, got {cognitive_array.shape}")
 
-        return Vector(semantic=semantic_embedding, dimensions=cognitive_array)
+        return np.concatenate([semantic_embedding, cognitive_array])
 
     def decompose_vector(self, vector: Vector) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -204,7 +202,7 @@ class VectorManager:
         Returns:
             List of Vector objects
         """
-        if semantic_embeddings.shape[0] != cognitive_dimensions.shape[0]:
+        if semantic_embeddings.shape[0] != len(cognitive_dimensions):
             raise ValueError("Number of semantic embeddings and cognitive dimensions must match")
 
         vectors = []

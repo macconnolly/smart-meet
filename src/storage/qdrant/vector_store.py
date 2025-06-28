@@ -34,8 +34,8 @@ try:
 except ImportError:
     raise ImportError("Qdrant client not installed. Please install: pip install qdrant-client")
 
-from ...models.entities import Memory
-from ...extraction.dimensions.dimension_analyzer import CognitiveDimensions
+from src.models.entities import Memory, Vector
+from src.extraction.dimensions.dimension_analyzer import CognitiveDimensions
 
 logger = logging.getLogger(__name__)
 
@@ -520,10 +520,15 @@ class QdrantVectorStore:
         if memory.timestamp_ms:
             payload["timestamp"] = memory.timestamp_ms / 1000.0
 
-        # Level-specific fields
-        if memory.level == 1:  # L1 contexts
-            # Could add source_count for consolidated memories
-            pass
+        # Add cognitive dimensions as flat payload fields
+        if memory.dimensions_json:
+            try:
+                dimensions_dict = json.loads(memory.dimensions_json)
+                for dim_group, dims in dimensions_dict.items():
+                    for dim_name, dim_value in dims.items():
+                        payload[f"dim_{dim_group}_{dim_name}"] = dim_value
+            except json.JSONDecodeError:
+                logger.warning(f"Could not decode dimensions_json for memory {memory.id}")
 
         return payload
 

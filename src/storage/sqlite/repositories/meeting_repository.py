@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import logging
 
 from .base import BaseRepository
-from ....models.entities import Meeting, MeetingType, MeetingCategory
+from src.models.entities import Meeting, MeetingType, MeetingCategory
 from ..connection import DatabaseConnection
 
 logger = logging.getLogger(__name__)

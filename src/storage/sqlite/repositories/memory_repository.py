@@ -11,8 +11,8 @@ import logging
 import json
 
 from .base import BaseRepository
-from ....models.entities import Memory, MemoryType, ContentType, Priority, Status
-from ....extraction.dimensions.dimension_analyzer import CognitiveDimensions
+from src.models.entities import Memory, MemoryType, ContentType, Priority, Status
+from src.extraction.dimensions.dimension_analyzer import CognitiveDimensions
 from ..connection import DatabaseConnection
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,6 @@ class MemoryRepository(BaseRepository[Memory]):
             "deliverable_id": memory.deliverable_id,
             "qdrant_id": memory.qdrant_id,
             "dimensions_json": memory.dimensions_json,
-            "dimensions_json": memory.dimensions_json,
         }
 
     def from_dict(self, data: Dict[str, Any]) -> Memory:
@@ -94,7 +93,6 @@ class MemoryRepository(BaseRepository[Memory]):
             parent_id=data.get("parent_id"),
             deliverable_id=data.get("deliverable_id"),
             qdrant_id=data.get("qdrant_id"),
-            dimensions_json=data.get("dimensions_json"),
             dimensions_json=data.get("dimensions_json"),
         )
 

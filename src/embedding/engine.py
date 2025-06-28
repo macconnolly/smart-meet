@@ -13,8 +13,8 @@ import asyncio
 
 from .onnx_encoder import EncoderConfig, get_encoder
 from .vector_manager import get_vector_manager
-from ..models.entities import Vector, Memory
-from ..extraction.dimensions.dimension_analyzer import DimensionAnalyzer
+from src.models.entities import Vector, Memory
+from src.extraction.dimensions.dimension_analyzer import DimensionAnalyzer
 
 logger = logging.getLogger(__name__)
 

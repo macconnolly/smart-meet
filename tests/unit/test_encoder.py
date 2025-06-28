@@ -160,7 +160,7 @@ class TestONNXEncoder:
     
     def test_benchmark(self, encoder):
         """Test benchmarking functionality."""
-        sample_texts = [f"Sample text {i}" for benchmarking." for i in range(100)]
+        sample_texts = [f"Sample text {i} for benchmarking." for i in range(100)]
         
         # Mock encoding methods
         encoder._encode_text = Mock(return_value=np.random.randn(384))

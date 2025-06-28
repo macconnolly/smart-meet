@@ -10,7 +10,7 @@ from datetime import datetime
 import logging
 
 from .base import BaseRepository
-from ....models.entities import Stakeholder, StakeholderType, InfluenceLevel, EngagementLevel
+from src.models.entities import Stakeholder, StakeholderType, InfluenceLevel, EngagementLevel
 from ..connection import DatabaseConnection
 
 logger = logging.getLogger(__name__)

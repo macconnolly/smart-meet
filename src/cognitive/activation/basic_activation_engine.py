@@ -18,7 +18,99 @@ from loguru import logger
 from ...models.entities import Memory, MemoryConnection
 from ...storage.sqlite.repositories import MemoryRepository, MemoryConnectionRepository
 from ...storage.qdrant.vector_store import QdrantVectorStore, SearchFilter
-from ...storage.qdrant.vector_store import QdrantVectorStore, SearchFilter
+from qdrant_client.http import models as rest
+from ...extraction.dimensions.dimension_analyzer import CognitiveDimensions
+
+
+def _build_cognitive_filter(
+    dimensions: CognitiveDimensions,
+    project_id: Optional[str],
+    threshold: float = 0.7
+) -> rest.Filter:
+    """Builds a Qdrant filter based on significant cognitive dimensions."""
+    must_conditions = []
+    if project_id:
+        must_conditions.append(
+            rest.FieldCondition(
+                key="project_id",
+                match=rest.MatchValue(value=project_id),
+            )
+        )
+
+    # Prioritize memories with similar high-scoring cognitive dimensions
+    # Only add conditions if the dimension value is above a certain threshold
+    if dimensions.temporal.urgency > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_temporal_urgency", range=rest.Range(gte=threshold))
+        )
+    if dimensions.temporal.deadline_proximity > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_temporal_deadline_proximity", range=rest.Range(gte=threshold))
+        )
+    if dimensions.temporal.sequence_position > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_temporal_sequence_position", range=rest.Range(gte=threshold))
+        )
+    if dimensions.temporal.duration_relevance > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_temporal_duration_relevance", range=rest.Range(gte=threshold))
+        )
+
+    if dimensions.emotional.polarity > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_emotional_polarity", range=rest.Range(gte=threshold))
+        )
+    if dimensions.emotional.intensity > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_emotional_intensity", range=rest.Range(gte=threshold))
+        )
+    if dimensions.emotional.confidence > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_emotional_confidence", range=rest.Range(gte=threshold))
+        )
+
+    if dimensions.social.authority > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_social_authority", range=rest.Range(gte=threshold))
+        )
+    if dimensions.social.influence > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_social_influence", range=rest.Range(gte=threshold))
+        )
+    if dimensions.social.team_dynamics > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_social_team_dynamics", range=rest.Range(gte=threshold))
+        )
+
+    if dimensions.causal.dependencies > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_causal_dependencies", range=rest.Range(gte=threshold))
+        )
+    if dimensions.causal.impact > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_causal_impact", range=rest.Range(gte=threshold))
+        )
+    if dimensions.causal.risk_factors > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_causal_risk_factors", range=rest.Range(gte=threshold))
+        )
+
+    if dimensions.strategic.alignment > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_strategic_alignment", range=rest.Range(gte=threshold))
+        )
+    if dimensions.strategic.innovation > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_strategic_innovation", range=rest.Range(gte=threshold))
+        )
+    if dimensions.strategic.value > threshold:
+        must_conditions.append(
+            rest.FieldCondition(key="dim_strategic_value", range=rest.Range(gte=threshold))
+        )
+
+    if must_conditions:
+        return rest.Filter(must=must_conditions)
+    return None
 
 
 class ActivationResult:
@@ -96,7 +188,8 @@ class BasicActivationEngine:
 
     async def activate_memories(
         self,
-        context: np.ndarray,
+        context_vector: np.ndarray,
+        query_cognitive_dimensions: CognitiveDimensions,
         threshold: float,
         max_activations: int = 50,
         project_id: Optional[str] = None
@@ -126,7 +219,7 @@ class BasicActivationEngine:
         try:
             # Phase 1: Find high-similarity L0 concepts as starting points
             starting_memories = await self._find_starting_memories(
-                context, threshold, project_id
+                context_vector, query_cognitive_dimensions, threshold, project_id
             )
 
             if not starting_memories:
@@ -136,7 +229,7 @@ class BasicActivationEngine:
 
             # Phase 2: BFS traversal through connection graph
             result = await self._bfs_activation(
-                context, starting_memories, threshold, max_activations, project_id
+                context_vector, starting_memories, threshold, max_activations, project_id
             )
 
             # Calculate timing
@@ -156,6 +249,46 @@ class BasicActivationEngine:
             logger.error("Memory activation failed", error=str(e))
             result.activation_time_ms = (time.time() - start_time) * 1000
             return result
+
+    async def _find_starting_memories(
+        self,
+        context_vector: np.ndarray,
+        query_cognitive_dimensions: CognitiveDimensions,
+        threshold: float,
+        project_id: Optional[str] = None
+    ) -> List[Memory]:
+        """
+        Find L0 memories with high similarity to context as starting points,
+        considering both semantic and cognitive dimensions.
+        """
+        qdrant_filter = _build_cognitive_filter(
+            dimensions=query_cognitive_dimensions,
+            project_id=project_id,
+            threshold=0.7 # Use a higher threshold for filtering starting memories
+        )
+
+        search_filter = SearchFilter(project_id=project_id) # Basic project filter
+        if qdrant_filter:
+            # Combine filters if cognitive filter is present
+            if search_filter.to_qdrant_filter():
+                search_filter.to_qdrant_filter().must.append(qdrant_filter)
+            else:
+                search_filter = qdrant_filter
+
+        search_results = await self.vector_store.search(
+            query_vector=context_vector,
+            level=0, # Always search L0 for starting concepts
+            limit=10,
+            filters=search_filter,
+            score_threshold=threshold,
+        )
+
+        memory_ids = [res.payload.get("memory_id") for res in search_results]
+        memories = [await self.memory_repo.get_by_id(mid) for mid in memory_ids if mid]
+        memories = [m for m in memories if m] # Filter out None
+
+        logger.debug(f"Found {len(memories)} starting memories for activation")
+        return memories
 
     async def _bfs_activation(
         self,
@@ -270,118 +403,60 @@ class BasicActivationEngine:
             explanation_parts.append(f"It is associated with project '{memory.project_id}'.")
 
         # Add details from enhanced cognitive dimensions
-        if memory.cognitive_dimensions:
-            dims = memory.cognitive_dimensions.to_dict()
-            if dims.get("urgency", 0) > 0.7:
-                explanation_parts.append(f"It is a highly urgent memory (urgency: {dims["urgency"]:.2f}).")
-            if dims.get("impact", 0) > 0.7:
-                explanation_parts.append(f"It highlights a significant impact (impact: {dims["impact"]:.2f}).")
-            if dims.get("authority", 0) > 0.7:
-                explanation_parts.append(f"It comes from an authoritative source (authority: {dims["authority"]:.2f}).")
-            if dims.get("innovation_level", 0) > 0.7:
-                explanation_parts.append(f"It represents a high level of innovation (innovation: {dims["innovation_level"]:.2f}).")
-            if dims.get("risk_factors", 0) > 0.7:
-                explanation_parts.append(f"It carries significant risk (risk: {dims["risk_factors"]:.2f}).")
-            if dims.get("dependencies", 0) > 0.7:
-                explanation_parts.append(f"It highlights important dependencies (dependencies: {dims["dependencies"]:.2f}).")
+        if memory.dimensions_json:
+            try:
+                import json
+                dims = json.loads(memory.dimensions_json)
+                if dims.get("temporal", {}).get("urgency", 0) > 0.7:
+                    explanation_parts.append(f"It is a highly urgent memory (urgency: {dims['temporal']['urgency']:.2f}).")
+                if dims.get("causal", {}).get("impact", 0) > 0.7:
+                    explanation_parts.append(f"It highlights a significant impact (impact: {dims['causal']['impact']:.2f}).")
+                if dims.get("social", {}).get("authority", 0) > 0.7:
+                    explanation_parts.append(f"It comes from an authoritative source (authority: {dims['social']['authority']:.2f}).")
+                if dims.get("strategic", {}).get("innovation", 0) > 0.7:
+                    explanation_parts.append(f"It represents a high level of innovation (innovation: {dims['strategic']['innovation']:.2f}).")
+                if dims.get("causal", {}).get("risk_factors", 0) > 0.7:
+                    explanation_parts.append(f"It carries significant risk (risk: {dims['causal']['risk_factors']:.2f}).")
+                if dims.get("causal", {}).get("dependencies", 0) > 0.7:
+                    explanation_parts.append(f"It highlights important dependencies (dependencies: {dims['causal']['dependencies']:.2f}).")
+            except json.JSONDecodeError:
+                logger.warning(f"Could not decode dimensions_json for memory {memory.id} in explanation generation.")
 
         return " ".join(explanation_parts)
 
-
-
-    async def _bfs_activation(
-        self,
-        context: np.ndarray,
-        starting_memories: List[Memory],
-        threshold: float,
-        max_activations: int,
-        project_id: Optional[str] = None
-    ) -> ActivationResult:
+    def get_activation_config(self) -> dict:
         """
-        Perform BFS traversal to activate connected memories.
-
-        Args:
-            context: Context vector for similarity computation
-            starting_memories: Starting memories for BFS
-            threshold: Minimum activation threshold
-            max_activations: Maximum number of memories to activate
-            project_id: Optional project filter
+        Get current activation configuration.
 
         Returns:
-            ActivationResult with activated memories
+            Dictionary with activation thresholds
         """
-        result = ActivationResult()
+        return {
+            "core_threshold": self.core_threshold,
+            "peripheral_threshold": self.peripheral_threshold,
+            "decay_factor": self.decay_factor
+        }
 
-        # Initialize BFS structures
-        queue = deque([(m, 1.0, 0, [m.id]) for m in starting_memories])  # (memory, strength, depth, path)
-        activated_ids: Set[str] = set()
+    def update_thresholds(
+        self,
+        core_threshold: float,
+        peripheral_threshold: float
+    ) -> None:
+        """
+        Update activation thresholds.
 
-        # Process starting memories
-        for memory in starting_memories:
-            activated_ids.add(memory.id)
-            result.activation_strengths[memory.id] = 1.0
+        Args:
+            core_threshold: New core threshold
+            peripheral_threshold: New peripheral threshold
+        """
+        self.core_threshold = max(0.0, min(1.0, core_threshold))
+        self.peripheral_threshold = max(0.0, min(1.0, peripheral_threshold))
 
-            if 1.0 >= self.core_threshold:
-                result.core_memories.append(memory)
-            elif 1.0 >= self.peripheral_threshold:
-                result.peripheral_memories.append(memory)
-
-        # BFS traversal through connection graph
-        while queue and len(activated_ids) < max_activations:
-            current_memory, current_strength, depth, path = queue.popleft()
-
-            # Get connected memories
-            connections = await self.connection_repo.get_connections_for_memory(
-                current_memory.id,
-                min_strength=self.peripheral_threshold
-            )
-
-            for connection in connections:
-                target_id = connection.target_id if connection.source_id == current_memory.id else connection.source_id
-
-                if target_id not in activated_ids:
-                    # Get the connected memory
-                    connected_memory = await self.memory_repo.get_by_id(target_id)
-                    if not connected_memory:
-                        continue
-
-                    # Apply project filter if specified
-                    if project_id and connected_memory.project_id != project_id:
-                        continue
-
-                    # Calculate activation strength with decay
-                    strength = current_strength * self.decay_factor * connection.connection_strength
-
-                    # Apply threshold filtering
-                    if strength >= threshold:
-                        activated_ids.add(target_id)
-                        result.activation_strengths[target_id] = strength
-
-                        # Categorize as core or peripheral
-                        if strength >= self.core_threshold:
-                            result.core_memories.append(connected_memory)
-                        elif strength >= self.peripheral_threshold:
-                            result.peripheral_memories.append(connected_memory)
-
-                        # Add to queue for further traversal
-                        new_path = path + [target_id]
-                        queue.append((connected_memory, strength, depth + 1, new_path))
-
-                        # Check activation limit
-                        if len(activated_ids) >= max_activations:
-                            break
-
-        # Sort memories by activation strength
-        result.core_memories.sort(
-            key=lambda m: result.activation_strengths.get(m.id, 0.0),
-            reverse=True
+        logger.debug(
+            "Activation thresholds updated",
+            core_threshold=self.core_threshold,
+            peripheral_threshold=self.peripheral_threshold,
         )
-        result.peripheral_memories.sort(
-            key=lambda m: result.activation_strengths.get(m.id, 0.0),
-            reverse=True
-        )
-
-        return result
 
     def _compute_cosine_similarity(self, vec1: np.ndarray, vec2: np.ndarray) -> float:
         """
@@ -417,37 +492,3 @@ class BasicActivationEngine:
         except Exception as e:
             logger.warning("Cosine similarity computation failed", error=str(e))
             return 0.0
-
-    def get_activation_config(self) -> dict:
-        """
-        Get current activation configuration.
-
-        Returns:
-            Dictionary with activation thresholds
-        """
-        return {
-            "core_threshold": self.core_threshold,
-            "peripheral_threshold": self.peripheral_threshold,
-            "decay_factor": self.decay_factor
-        }
-
-    def update_thresholds(
-        self,
-        core_threshold: float,
-        peripheral_threshold: float
-    ) -> None:
-        """
-        Update activation thresholds.
-
-        Args:
-            core_threshold: New core threshold
-            peripheral_threshold: New peripheral threshold
-        """
-        self.core_threshold = max(0.0, min(1.0, core_threshold))
-        self.peripheral_threshold = max(0.0, min(1.0, peripheral_threshold))
-
-        logger.debug(
-            "Activation thresholds updated",
-            core_threshold=self.core_threshold,
-            peripheral_threshold=self.peripheral_threshold,
-        )

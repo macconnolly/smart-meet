@@ -16,7 +16,7 @@ import numpy as np
 from loguru import logger
 
 from ...models.entities import Memory
-from .basic_activation import BasicActivationEngine, ActivationResult
+from ..activation.basic_activation_engine import BasicActivationEngine, ActivationResult
 from .bridge_discovery import SimpleBridgeDiscovery, BridgeMemory
 from .similarity_search import SimilaritySearch, SearchResult
 

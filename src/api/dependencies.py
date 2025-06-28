@@ -5,9 +5,9 @@ This module provides dependency functions for FastAPI endpoints.
 """
 
 from typing import Generator, Optional
-from ..storage.sqlite.connection import DatabaseConnection
-from ..storage.qdrant.vector_store import QdrantVectorStore
-from ..core.config import get_settings
+from src.storage.sqlite.connection import DatabaseConnection
+from src.storage.qdrant.vector_store import QdrantVectorStore
+from src.core.config import get_settings
 
 # Global instances (set by main.py)
 _db_connection: Optional[DatabaseConnection] = None

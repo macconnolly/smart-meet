@@ -14,21 +14,22 @@ from datetime import datetime
 import time
 import numpy as np
 
-from ..models.entities import Meeting, Memory, MemoryConnection, Vector, ConnectionType
-from ..extraction.memory_extractor import MemoryExtractor
-from ..extraction.dimensions.dimension_analyzer import (
+from src.models.entities import Meeting, Memory, MemoryConnection, Vector, ConnectionType
+from src.extraction.memory_extractor import MemoryExtractor
+from src.extraction.dimensions.dimension_analyzer import (
     DimensionAnalyzer,
     DimensionExtractionContext,
-    CognitiveDimensions
+    CognitiveDimensions,
+    get_dimension_analyzer
 )
-from ..embedding.onnx_encoder import ONNXEncoder
-from ..embedding.vector_manager import VectorManager
-from ..storage.sqlite.repositories import (
+from src.embedding.onnx_encoder import ONNXEncoder
+from src.embedding.vector_manager import VectorManager, get_vector_manager
+from src.storage.sqlite.repositories import (
     MeetingRepository,
     MemoryRepository,
     MemoryConnectionRepository,
 )
-from ..storage.qdrant.vector_store import QdrantVectorStore
+from src.storage.qdrant.vector_store import QdrantVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +115,7 @@ class IngestionPipeline:
             raw_content: Raw content for dimension extraction
         """
         # 1. Extract Cognitive Dimensions
-        dimension_analyzer = get_dimension_analyzer()
+        dimension_analyzer = self.dimension_analyzer
         # Create context for dimension extraction
         dim_context = DimensionExtractionContext(
             timestamp_ms=memory.timestamp_ms,
@@ -128,16 +129,14 @@ class IngestionPipeline:
         memory.dimensions_json = json.dumps(cognitive_dimensions.to_dict())  # Store as JSON
 
         # 2. Generate Semantic Embedding
-        encoder = get_encoder()
-        semantic_embedding = encoder.encode(raw_content, normalize=True)
+        semantic_embedding = self.encoder.encode(raw_content, normalize=True)
 
         # 3. Compose Full 400D Vector
-        vector_manager = get_vector_manager()
-        full_vector_obj = vector_manager.compose_vector(semantic_embedding, cognitive_dimensions)
+        vector_manager = self.vector_manager
+        full_vector = self.vector_manager.compose_vector(semantic_embedding, cognitive_dimensions)
 
         # 4. Store in Qdrant
-        vector_store = self.vector_store
-        await vector_store.store_memory(memory, full_vector_obj)  # Pass full_vector_obj
+        await self.vector_store.store_memory(memory, full_vector)  # Pass full_vector
 
         # 5. Store in SQLite (MemoryRepository)
         memory_repo = self.memory_repo
@@ -363,7 +362,7 @@ class IngestionPipeline:
 
     def _compose_vectors(
         self, embeddings: np.ndarray, dimensions: List[CognitiveDimensions], errors: List[str]
-    ) -> List[Vector]:
+    ) -> List[np.ndarray]:
         """Compose full 400D vectors."""
         try:
             vectors = []
@@ -383,7 +382,7 @@ class IngestionPipeline:
             return []
 
     async def _store_memories_and_vectors(
-        self, memories: List[Memory], vectors: List[Vector], errors: List[str]
+        self, memories: List[Memory], vectors: List[np.ndarray], errors: List[str]
     ) -> int:
         """Store memories in SQLite and vectors in Qdrant."""
         stored_count = 0

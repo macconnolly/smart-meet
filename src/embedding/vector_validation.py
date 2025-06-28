@@ -10,7 +10,7 @@ from typing import List, Tuple, Dict, Optional, Any
 import numpy as np
 from dataclasses import dataclass
 
-from ..models.entities import Vector
+from src.models.entities import Vector
 from .vector_manager import VectorManager, get_vector_manager
 
 logger = logging.getLogger(__name__)

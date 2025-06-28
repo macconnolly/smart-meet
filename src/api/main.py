@@ -9,7 +9,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Dict, Any
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -26,7 +26,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from .dependencies import set_db_connection, set_vector_store
+from .dependencies import set_db_connection, set_vector_store, get_db_connection
 
 
 @asynccontextmanager
@@ -115,8 +115,9 @@ def create_app() -> FastAPI:
     # Include routers
     app.include_router(memories.router, prefix="/api/v2", tags=["memories"])
     app.include_router(cognitive.router, prefix="/api/v2", tags=["cognitive"])
+    app.include_router(bridges.router, prefix="/api/v2", tags=["bridges"])
 
-    app.include_router(bridges.router, prefix="/api/v2", tags=["bridges"]) # Add this line
+
 
     # Root endpoint
     @app.get("/", tags=["root"])
@@ -138,7 +139,10 @@ def create_app() -> FastAPI:
 
     # Health check endpoint
     @app.get("/health", tags=["health"])
-    async def health_check():
+    async def health_check(
+        db_connection: DatabaseConnection = Depends(get_db_connection),
+        vector_store: QdrantVectorStore = Depends(get_vector_store_instance),
+    ):
         """
         Health check endpoint for monitoring.
 

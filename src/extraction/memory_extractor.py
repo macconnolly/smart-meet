@@ -14,7 +14,7 @@ from datetime import datetime
 import uuid
 from collections import defaultdict
 
-from ..models.entities import Memory, MemoryType, ContentType, Priority
+from src.models.entities import Memory, MemoryType, ContentType, Priority
 
 logger = logging.getLogger(__name__)
 

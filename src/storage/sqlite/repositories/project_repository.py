@@ -10,7 +10,7 @@ from datetime import datetime
 import logging
 
 from .base import BaseRepository
-from ....models.entities import Project, ProjectType, ProjectStatus
+from src.models.entities import Project, ProjectType, ProjectStatus
 from ..connection import DatabaseConnection
 
 logger = logging.getLogger(__name__)

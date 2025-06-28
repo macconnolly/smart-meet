@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Q
 from pydantic import BaseModel, Field
 
 from ..dependencies import get_db_connection, get_vector_store_instance
-from ...models.entities import (
+from src.models.entities import (
     Meeting,
     Memory,
     Project,
@@ -23,19 +23,20 @@ from ...models.entities import (
     ProjectStatus,
     MeetingCategory,
 )
-from ...pipeline.ingestion_pipeline import (
+from src.pipeline.ingestion_pipeline import (
     create_ingestion_pipeline,
     IngestionResult,
     PipelineConfig,
 )
-from ...storage.sqlite.repositories import (
+from src.storage.sqlite.repositories import (
     get_meeting_repository,
     get_memory_repository,
     get_project_repository,
 )
-from ...storage.qdrant.vector_store import SearchFilter, VectorSearchResult
-from ...embedding.onnx_encoder import get_encoder
-from ...embedding.vector_manager import get_vector_manager
+from src.storage.qdrant.vector_store import SearchFilter, VectorSearchResult
+from src.embedding.onnx_encoder import get_encoder
+from src.embedding.vector_manager import get_vector_manager
+from src.extraction.dimensions.dimension_analyzer import get_dimension_analyzer, DimensionExtractionContext
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -316,16 +317,15 @@ async def search_memories(
         query_embedding = encoder.encode(search_request.query, normalize=True)
 
         # Extract cognitive dimensions from the search query itself
-        from ...extraction.dimensions.analyzer import get_dimension_analyzer, DimensionExtractionContext
+        from ...extraction.dimensions.dimension_analyzer import get_dimension_analyzer, DimensionExtractionContext
         dimension_analyzer = get_dimension_analyzer()
         # Create a minimal context for the query (e.g., content_type="query")
         query_dim_context = DimensionExtractionContext(content_type="query")
         query_cognitive_dimensions = await dimension_analyzer.analyze(search_request.query, query_dim_context)
 
-                vector_manager = get_vector_manager()
-                # Use the extracted cognitive dimensions for the query vector
-                query_vector_obj = vector_manager.compose_vector(query_embedding, query_cognitive_dimensions)
-                query_vector = query_vector_obj.full_vector
+        vector_manager = get_vector_manager()
+        # Use the extracted cognitive dimensions for the query vector
+        query_vector = vector_manager.compose_vector(query_embedding, query_cognitive_dimensions)
 
         # Create search filter
         search_filter = SearchFilter(

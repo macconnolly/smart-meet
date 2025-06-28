@@ -6,7 +6,7 @@ import json
 import uuid
 from pathlib import Path
 
-from src.pipeline.ingestion import IngestionPipeline
+from src.pipeline.ingestion_pipeline import IngestionPipeline
 from src.models.entities import Meeting, Memory, ContentType, MemoryType
 from src.storage.sqlite.connection import DatabaseConnection
 from src.storage.sqlite.sql_repositories import (
@@ -114,7 +114,18 @@ class TestIngestionPipeline:
 
         # Verify Qdrant interactions (mocked)
         ingestion_pipeline.vector_store.client.upsert.assert_called()
-        # You can add more specific assertions on mock_qdrant_client_for_ingestion.upsert.call_args_list
+        # Verify that dimensions are stored in Qdrant payload
+        upsert_calls = ingestion_pipeline.vector_store.client.upsert.call_args_list
+        assert len(upsert_calls) > 0
+        # Check the payload of the first upserted point
+        first_call_points = upsert_calls[0].kwargs['points']
+        assert len(first_call_points) > 0
+        first_point_payload = first_call_points[0].payload
+        assert 'dim_temporal_urgency' in first_point_payload
+        assert 'dim_emotional_polarity' in first_point_payload
+        assert 'dim_social_authority' in first_point_payload
+        assert 'dim_causal_impact' in first_point_payload
+        assert 'dim_evolutionary_change_rate' in first_point_payload
 
     async def test_ingest_meeting_non_existent_transcript(self, ingestion_pipeline, ingestion_db_connection):
         meeting = Meeting(

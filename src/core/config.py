@@ -6,7 +6,7 @@ for environment variable management and validation.
 """
 
 from typing import List, Optional, Union
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 import os
@@ -72,14 +72,14 @@ class Settings(BaseSettings):
         False, env="ENABLE_MEMORY_CONSOLIDATION"  # Not implemented in Phase 1
     )
 
-    @validator("cors_origins", pre=True)
+    @field_validator("cors_origins", mode="before")
     def parse_cors_origins(cls, v):
         """Parse CORS origins from comma-separated string."""
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
         return v
 
-    @validator("environment")
+    @field_validator("environment")
     def validate_environment(cls, v):
         """Validate environment is one of allowed values."""
         allowed = ["development", "staging", "production"]
@@ -87,7 +87,7 @@ class Settings(BaseSettings):
             raise ValueError(f"environment must be one of {allowed}")
         return v
 
-    @validator("log_level")
+    @field_validator("log_level")
     def validate_log_level(cls, v):
         """Validate log level."""
         allowed = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -95,12 +95,12 @@ class Settings(BaseSettings):
             raise ValueError(f"log_level must be one of {allowed}")
         return v.upper()
 
-    class Config:
-        """Pydantic configuration."""
-
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "case_sensitive": False,
+        "extra": "allow"  # Allow extra fields from env
+    }
 
 
 class DevelopmentSettings(Settings):
@@ -116,7 +116,7 @@ class ProductionSettings(Settings):
     debug: bool = False
     log_level: str = "INFO"
 
-    @validator("secret_key")
+    @field_validator("secret_key")
     def validate_secret_key(cls, v):
         """Ensure secret key is changed in production."""
         if v == "your-secret-key-here-change-in-production":

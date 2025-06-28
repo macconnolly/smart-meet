@@ -10,7 +10,7 @@ from datetime import datetime
 import logging
 
 from .base import BaseRepository
-from ....models.entities import MemoryConnection, ConnectionType
+from src.models.entities import MemoryConnection, ConnectionType
 from ..connection import DatabaseConnection
 
 logger = logging.getLogger(__name__)
