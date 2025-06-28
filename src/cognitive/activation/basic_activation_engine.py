@@ -17,7 +17,7 @@ from loguru import logger
 
 from ...models.entities import Memory, MemoryConnection
 from ...storage.sqlite.repositories import MemoryRepository, MemoryConnectionRepository
-from ...storage.qdrant.vector_store import QdrantVectorStore
+from ...storage.qdrant.vector_store import QdrantVectorStore, SearchFilter
 
 
 class ActivationResult:
@@ -272,63 +272,42 @@ class BasicActivationEngine:
 
     async def _find_starting_memories(
         self,
-        context: np.ndarray,
+        context_vector: np.ndarray, # This is the 400D query vector
         threshold: float,
         project_id: Optional[str] = None
     ) -> List[Memory]:
         """
-        Find L0 memories with high similarity to context as starting points.
-
-        Args:
-            context: Context vector for similarity computation
-            threshold: Minimum similarity threshold
-            project_id: Optional project filter
-
-        Returns:
-            List of starting memories for activation
+        Find L0 memories with high similarity to context as starting points,
+        considering both semantic and cognitive dimensions.
         """
-        # Phase 1: Search L0 concepts in Qdrant
+        # Extract cognitive dimensions from the context_vector (if it's 400D)
+        # Assuming the first 384 are semantic, last 16 are cognitive
+        # This requires a way to decompose the 400D vector back into its components.
+        # A better approach might be to pass the CognitiveDimensions object directly.
+        # For now, let's assume context_vector is the full 400D vector.
+
+        # Option 1: Decompose context_vector (less ideal if dimensions are already available)
+        # query_semantic_embedding = context_vector[:384]
+        # query_cognitive_dimensions_array = context_vector[384:]
+        # query_cognitive_dimensions = CognitiveDimensions.from_array(query_cognitive_dimensions_array)
+
+        # Option 2 (Preferred): Modify activate_memories to pass CognitiveDimensions
+        # For this step, let's assume we can derive or are passed the cognitive dimensions of the query.
+        # If not, we'd need to re-extract them from the original query string here.
+        # For simplicity, let's assume the context_vector already has the cognitive part.
+
+        qdrant_filter_conditions = {"project_id": project_id} if project_id else {}
+
+        # Example: If query has high urgency, prioritize L0 concepts with high urgency
+        # This requires a more sophisticated filter construction based on query's cognitive dimensions.
+        # For now, we'll stick to vector similarity but acknowledge this as a future enhancement.
+
         search_results = await self.vector_store.search(
-            query_vector=context.tolist(),
+            query_vector=context_vector.tolist(), # Use the full 400D vector
             collection_name="L0_cognitive_concepts",
-            limit=10,  # Get top 10 L0 concepts
+            limit=10,
             score_threshold=threshold,
-            filter_conditions={"project_id": project_id} if project_id else None
-        )
-        
-        starting_memories = []
-        for result in search_results:
-            memory = await self.memory_repo.get_by_id(result.id)
-            if memory and memory.level == 0:
-                starting_memories.append(memory)
-                
-        logger.debug(f"Found {len(starting_memories)} starting memories from L0 concepts")
-        return starting_memories
-
-    async def _find_starting_memories(
-        self,
-        context: np.ndarray,
-        threshold: float,
-        project_id: Optional[str] = None
-    ) -> List[Memory]:
-        """
-        Find L0 memories with high similarity to context as starting points.
-
-        Args:
-            context: Context vector for similarity computation
-            threshold: Minimum similarity threshold
-            project_id: Optional project filter
-
-        Returns:
-            List of starting memories for activation
-        """
-        # Search L0 concepts in Qdrant
-        search_results = await self.vector_store.search(
-            query_vector=context.tolist(),
-            collection_name="L0_cognitive_concepts",
-            limit=10,  # Get top 10 L0 concepts
-            score_threshold=threshold,
-            filter_conditions={"project_id": project_id} if project_id else None
+            filters=SearchFilter(**qdrant_filter_conditions) # Use SearchFilter for project_id
         )
         
         starting_memories = []
