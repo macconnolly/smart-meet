@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .routers import memories
+from .routers import memories, cognitive, bridges
 from ..core.config import Settings, get_settings
 from ..storage.sqlite.connection import DatabaseConnection
 from ..storage.qdrant.vector_store import QdrantVectorStore
@@ -115,6 +115,7 @@ def create_app() -> FastAPI:
     # Include routers
     app.include_router(memories.router, prefix="/api/v2", tags=["memories"])
     app.include_router(cognitive.router, prefix="/api/v2", tags=["cognitive"])
+    app.include_router(bridges.router, prefix="/api/v2", tags=["bridges"])
 
     # Root endpoint
     @app.get("/", tags=["root"])
@@ -128,6 +129,7 @@ def create_app() -> FastAPI:
                 "health": "/health",
                 "docs": "/docs",
                 "cognitive_search": "/api/v2/cognitive/query",
+                "bridge_discovery": "/api/v2/discover-bridges",
                 "ingest": "/api/v2/memories/ingest",
                 "search": "/api/v2/memories/search",
             },

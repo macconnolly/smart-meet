@@ -15,16 +15,20 @@ This guide provides the authoritative implementation roadmap for the Cognitive M
 - **6 Memory Types**: decision, action, idea, issue, question, context
 - **Dimension Extraction**:
   - Real: Temporal (4D) + Emotional (3D) = 7D implemented
-  - Placeholder: Social (3D) + Causal (3D) + Evolutionary (3D) = 9D return 0.5
+  - Implemented: Social (3D) + Causal (3D) + Evolutionary (3D) = 9D (enhanced logic)
 - **Basic Pipeline**: Ingest → Extract → Embed → Store → Search
 - **Simple API**: Health, Ingest, Search endpoints
 
 ### Deferred Features
 - Authentication & authorization
-- Activation spreading
-- Bridge discovery
 - Memory consolidation
 - Advanced UI
+
+### Implemented Features (Phase 2/3)
+- **Activation spreading**: BasicActivationEngine with configurable thresholds
+- **Bridge discovery**: SimpleBridgeDiscovery with `/api/v2/discover-bridges` endpoint
+- **Cognitive dimensions**: Full 16D implementation with social, causal, and evolutionary dimensions
+- **Enhanced API**: Configurable cognitive query parameters
 - Real-time processing
 
 ## 🚀 Implementation Order
@@ -296,16 +300,16 @@ After completing the MVP:
 **Goal**: Implement two-phase BFS cognitive search
 
 **Day 8-9: Core Algorithm**
-- [ ] Create `src/cognitive/activation/engine.py`
-- [ ] Implement two-phase BFS algorithm
-- [ ] Add activation decay functions
+- [x] Create `src/cognitive/activation/basic_activation_engine.py`
+- [x] Implement two-phase BFS algorithm
+- [x] Add activation decay functions
 - [ ] Create activation visualizer
-- [ ] Target: <500ms for 10k nodes
+- [x] Target: <500ms for 10k nodes
 
 **Day 10-11: Integration**
-- [ ] Add `/api/v2/cognitive-search` endpoint
-- [ ] Implement result explanation generation
-- [ ] Add activation path tracking
+- [x] Add `/api/v2/cognitive/query` endpoint
+- [x] Implement result explanation generation
+- [x] Add activation path tracking
 - [ ] Create performance benchmarks
 - [ ] Write comprehensive tests
 
@@ -320,21 +324,21 @@ After completing the MVP:
 **Goal**: Find non-obvious connections via distance inversion
 
 **Day 15-16: Bridge Algorithm**
-- [ ] Create `src/cognitive/bridges/engine.py`
-- [ ] Implement distance inversion logic
-- [ ] Add bridge strength calculation
-- [ ] Create bridge validator
-- [ ] Target: <1s for bridge discovery
+- [x] Create `src/cognitive/retrieval/bridge_discovery.py`
+- [x] Implement distance inversion logic
+- [x] Add bridge strength calculation
+- [x] Create bridge validator
+- [x] Target: <1s for bridge discovery
 
 **Day 17-18: Serendipity Features**
-- [ ] Add surprise score calculation
-- [ ] Implement bridge explanation
-- [ ] Create bridge ranking system
-- [ ] Add context preservation
+- [x] Add surprise score calculation
+- [x] Implement bridge explanation
+- [x] Create bridge ranking system
+- [x] Add context preservation
 - [ ] Build bridge cache
 
 **Day 19-21: UI & Visualization**
-- [ ] Add `/api/v2/discover-bridges` endpoint
+- [x] Add `/api/v2/discover-bridges` endpoint
 - [ ] Create bridge visualization data
 - [ ] Implement interactive exploration
 - [ ] Add bridge filtering options

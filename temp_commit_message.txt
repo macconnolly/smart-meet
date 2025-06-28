@@ -1,0 +1,15 @@
+feat: Implement Phase 1, 2, and 3 of Cognitive Enhancement Plan
+
+This commit integrates enhanced cognitive dimensions into the memory representation,
+refines the activation engine, and exposes bridge discovery as a first-class API feature.
+
+Key changes include:
+- Augmenting Memory entity to persist full cognitive dimensions in `src/storage/sqlite/repositories/memory_repository.py`.
+- Integrating full dimensions into vector composition in `src/embedding/vector_manager.py`.
+- Updating the ingestion pipeline to use full dimensions in `src/pipeline/ingestion_pipeline.py`.
+- Leveraging dimensions in the semantic search API in `src/api/routers/memories.py`.
+- Exposing activation parameters in the cognitive query API in `src/api/routers/cognitive.py`.
+- Refining starting memories with cognitive dimensions in `src/cognitive/activation/basic_activation_engine.py`.
+- Creating a dedicated bridge discovery API router in `src/api/routers/bridges.py`.
+- Integrating the bridge discovery router into the main API in `src/api/main.py`.
+- Updating `IMPLEMENTATION_GUIDE.md` to reflect completed phases.
