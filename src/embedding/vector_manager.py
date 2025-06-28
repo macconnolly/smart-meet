@@ -13,6 +13,7 @@ from dataclasses import dataclass
 import json
 
 from ..models.entities import Vector
+from ..extraction.dimensions.analyzer import CognitiveDimensions
 
 logger = logging.getLogger(__name__)
 
@@ -67,48 +68,30 @@ class VectorManager:
         self._stats_cache: Dict[str, VectorStats] = {}
 
     def compose_vector(
-        self, semantic_embedding: np.ndarray, cognitive_dimensions: np.ndarray
+        self, semantic_embedding: np.ndarray, cognitive_dimensions: CognitiveDimensions
     ) -> Vector:
         """
-        Compose a full 400D vector from components.
+        Composes a 400D vector from a 384D semantic embedding and 16D cognitive dimensions.
 
         Args:
             semantic_embedding: 384D semantic embedding
-            cognitive_dimensions: 16D cognitive dimensions
+            cognitive_dimensions: CognitiveDimensions object
 
         Returns:
-            Composed Vector object
+            Vector object
 
         Raises:
             ValueError: If input dimensions are incorrect
         """
-        # Validate inputs
-        if semantic_embedding.shape != (self.SEMANTIC_DIM,):
-            raise ValueError(
-                f"Semantic embedding must be {self.SEMANTIC_DIM}D, "
-                f"got {semantic_embedding.shape}"
-            )
+        if semantic_embedding.shape != (384,):
+            raise ValueError(f"Semantic embedding must be 384D, got {semantic_embedding.shape}")
 
-        if cognitive_dimensions.shape != (self.COGNITIVE_DIM,):
-            raise ValueError(
-                f"Cognitive dimensions must be {self.COGNITIVE_DIM}D, "
-                f"got {cognitive_dimensions.shape}"
-            )
+        # Ensure cognitive_dimensions is converted to a numpy array
+        cognitive_array = cognitive_dimensions.to_array()
+        if cognitive_array.shape != (16,):
+            raise ValueError(f"Cognitive dimensions must be 16D, got {cognitive_array.shape}")
 
-        # Normalize semantic embedding
-        semantic_norm = np.linalg.norm(semantic_embedding)
-        if semantic_norm > 0:
-            normalized_semantic = semantic_embedding / semantic_norm
-        else:
-            normalized_semantic = semantic_embedding
-            logger.warning("Semantic embedding has zero norm")
-
-        # Validate cognitive dimensions are in [0, 1]
-        if not np.all((cognitive_dimensions >= 0) & (cognitive_dimensions <= 1)):
-            logger.warning("Cognitive dimensions outside [0, 1] range, clipping")
-            cognitive_dimensions = np.clip(cognitive_dimensions, 0, 1)
-
-        return Vector(semantic=normalized_semantic, dimensions=cognitive_dimensions)
+        return Vector(semantic=semantic_embedding, dimensions=cognitive_array)
 
     def decompose_vector(self, vector: Vector) -> Tuple[np.ndarray, np.ndarray]:
         """

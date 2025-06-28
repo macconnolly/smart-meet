@@ -256,19 +256,70 @@ class TestMemory:
             content="Test memory",
             timestamp_ms=1500000,
             qdrant_id="qdrant_test",
-            dimensions_json=json.dumps({"temporal": [0.5] * 4}),
+            raw_dimensions_json=json.dumps({"temporal": [0.5] * 4}),
         )
 
         # Test to_dict
         data = memory.to_dict()
         assert data["timestamp"] == 1500.0  # Converted to seconds
         assert data["memory_type"] == "episodic"
-        assert data["dimensions_json"] is not None
+        assert data["raw_dimensions_json"] is not None
 
         # Test from_dict
         memory2 = Memory.from_dict(data)
         assert memory2.timestamp_ms == 1500000  # Converted back to ms
         assert memory2.content == "Test memory"
+
+    def test_memory_with_cognitive_dimensions(self):
+        """Test memory with CognitiveDimensions object."""
+        from src.extraction.dimensions.dimension_analyzer import CognitiveDimensions, TemporalFeatures, EmotionalFeatures, SocialFeatures, CausalFeatures, EvolutionaryFeatures
+
+        # Create a sample CognitiveDimensions object with non-default values for enhanced dimensions
+        cognitive_dims = CognitiveDimensions(
+            temporal=TemporalFeatures(urgency=0.8, deadline_proximity=0.7, sequence_position=0.5, duration_relevance=0.6),
+            emotional=EmotionalFeatures(polarity=0.9, intensity=0.8, confidence=0.7),
+            social=SocialFeatures(authority=0.9, influence=0.8, team_dynamics=0.7), # Enhanced values
+            causal=CausalFeatures(dependencies=0.8, impact=0.9, risk_factors=0.7), # Enhanced values
+            evolutionary=EvolutionaryFeatures(change_rate=0.8, innovation_level=0.9, adaptation_need=0.7) # Enhanced values
+        )
+
+        memory = Memory(
+            meeting_id="meet_001",
+            project_id="proj_001",
+            content="Test memory with full dimensions",
+            cognitive_dimensions=cognitive_dims,
+        )
+
+        # Test to_dict
+        data = memory.to_dict()
+        assert "raw_dimensions_json" in data
+        assert data["raw_dimensions_json"] is not None
+
+        # Verify the content of raw_dimensions_json
+        parsed_dims = json.loads(data["raw_dimensions_json"])
+        assert parsed_dims["temporal"] == cognitive_dims.temporal.to_array().tolist()
+        assert parsed_dims["social"] == cognitive_dims.social.to_array().tolist()
+        assert parsed_dims["causal"] == cognitive_dims.causal.to_array().tolist()
+        assert parsed_dims["evolutionary"] == cognitive_dims.evolutionary.to_array().tolist()
+
+        # Test from_dict
+        memory2 = Memory.from_dict(data)
+        assert memory2.cognitive_dimensions is not None
+        assert memory2.cognitive_dimensions.temporal.urgency == cognitive_dims.temporal.urgency
+        assert memory2.cognitive_dimensions.social.authority == cognitive_dims.social.authority
+        assert memory2.cognitive_dimensions.causal.impact == cognitive_dims.causal.impact
+        assert memory2.cognitive_dimensions.evolutionary.innovation_level == cognitive_dims.evolutionary.innovation_level
+
+        # Test with no cognitive dimensions
+        memory_no_dims = Memory(
+            meeting_id="meet_002",
+            project_id="proj_002",
+            content="Memory without dimensions",
+        )
+        data_no_dims = memory_no_dims.to_dict()
+        assert data_no_dims["raw_dimensions_json"] is None
+        memory_no_dims2 = Memory.from_dict(data_no_dims)
+        assert memory_no_dims2.cognitive_dimensions is None
 
 
 class TestMemoryConnection:

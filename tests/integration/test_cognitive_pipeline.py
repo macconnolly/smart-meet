@@ -350,25 +350,68 @@ class TestCognitivePipelineIntegration:
     
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_activation_spreading_integration(self):
-        """Test activation spreading finds related memories."""
-        # This tests the core cognitive functionality
-        try:
-            # Create activation engine
-            memory_repo = get_memory_repository()
-            vector_store = get_vector_store()
-            
-            activation_engine = BFSActivationEngine(
-                memory_repo=memory_repo,
-                vector_store=vector_store
-            )
-            
-            # Test with some seed memories (requires stored memories)
-            # This will fail until activation spreading is implemented
-            pytest.skip("Activation spreading not implemented yet")
-            
-        except NotImplementedError:
-            pytest.skip("Activation spreading not implemented yet")
+    async def test_activation_spreading_integration(self, ingestion_pipeline, sample_meeting_transcript):
+        """Test activation spreading finds related memories and generates explanations."""
+        # 1. Ingest memories using the full pipeline
+        meeting = Meeting(
+            id="test-meeting-activation",
+            project_id="test-project-activation",
+            title="Activation Test Meeting",
+            transcript_path="inline",
+            start_time=datetime.now()
+        )
+        await ingestion_pipeline.ingest_meeting(meeting, sample_meeting_transcript)
+
+        # Get repositories and vector store from the pipeline
+        memory_repo = ingestion_pipeline.memory_repo
+        connection_repo = ingestion_pipeline.connection_repo
+        vector_store = ingestion_pipeline.vector_store
+
+        # Create activation engine
+        activation_engine = BasicActivationEngine(
+            memory_repo=memory_repo,
+            connection_repo=connection_repo,
+            vector_store=vector_store
+        )
+
+        # Define a query that should activate specific memories
+        query_string = "What was the decision about Redis caching?"
+        query_embedding = ingestion_pipeline.encoder.encode(query_string)
+        query_dim_context = DimensionExtractionContext(content_type="query")
+        query_cognitive_dimensions = await ingestion_pipeline.dimension_analyzer.analyze(query_string, query_dim_context)
+        query_context_vector = ingestion_pipeline.vector_manager.compose_vector(query_embedding, query_cognitive_dimensions).full_vector
+
+        # Perform activation
+        activation_result = await activation_engine.activate_memories(
+            context=query_context_vector,
+            threshold=0.5, # Lower threshold for broader activation
+            max_activations=10,
+            project_id="test-project-activation"
+        )
+
+        assert activation_result.total_activated > 0
+        assert len(activation_result.core_memories) > 0
+
+        # Verify explanations contain cognitive dimension details
+        found_redis_decision = False
+        for mem in activation_result.core_memories + activation_result.peripheral_memories:
+            if "redis" in mem.content.lower() and "decision" in mem.content_type.value.lower():
+                found_redis_decision = True
+                explanation = activation_result.activation_explanations.get(mem.id, "")
+                print(f"\nActivated Memory: {mem.content[:80]}...")
+                print(f"Explanation: {explanation}")
+                assert "decision" in explanation # Check for content type
+                assert "activation strength" in explanation
+                # Check for phrases related to enhanced dimensions if applicable to the memory's content
+                if mem.cognitive_dimensions:
+                    if mem.cognitive_dimensions.temporal.urgency > 0.7:
+                        assert "highly urgent memory" in explanation
+                    if mem.cognitive_dimensions.causal.impact > 0.7:
+                        assert "significant impact" in explanation
+
+        assert found_redis_decision, "Should activate memory about Redis decision"
+
+        print(f"\nSuccessfully tested activation spreading integration.")
     
     @pytest.mark.integration
     @pytest.mark.performance

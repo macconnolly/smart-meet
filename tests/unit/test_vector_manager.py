@@ -431,6 +431,6 @@ class TestVectorManager:
         assert np.isclose(np.linalg.norm(vector.semantic), 1.0)
 
         # Normalize should also handle this
-        zero_vector = Vector(semantic=np.zeros(384), dimensions=valid_dimensions)
+        zero_vector = Vector(semantic=np.zeros(384), dimensions=valid_dimensions.to_array())
         normalized = manager.normalize_vector(zero_vector)
         assert normalized.semantic[0] == 1.0

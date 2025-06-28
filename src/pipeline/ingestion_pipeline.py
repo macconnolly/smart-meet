@@ -7,6 +7,7 @@ stored memories with vectors and connections in the cognitive system.
 
 import logging
 import asyncio
+import json
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
@@ -15,9 +16,13 @@ import numpy as np
 
 from ..models.entities import Meeting, Memory, MemoryConnection, Vector, ConnectionType
 from ..extraction.memory_extractor import MemoryExtractor
-from ..extraction.dimensions.dimension_analyzer import DimensionAnalyzer, DimensionExtractionContext
-from ..embedding.onnx_encoder import ONNXEncoder
-from ..embedding.vector_manager import VectorManager
+from ..extraction.dimensions.analyzer import (
+    get_dimension_analyzer,
+    DimensionExtractionContext,
+    CognitiveDimensions
+)
+from ..embedding.onnx_encoder import ONNXEncoder, get_encoder
+from ..embedding.vector_manager import VectorManager, get_vector_manager
 from ..storage.sqlite.repositories import (
     MeetingRepository,
     MemoryRepository,
@@ -73,7 +78,7 @@ class IngestionPipeline:
         self,
         memory_extractor: MemoryExtractor,
         encoder: ONNXEncoder,
-        dimension_analyzer: DimensionAnalyzer,
+        dimension_analyzer: Any,  # DimensionAnalyzer instance
         vector_manager: VectorManager,
         meeting_repo: MeetingRepository,
         memory_repo: MemoryRepository,
@@ -99,6 +104,44 @@ class IngestionPipeline:
             "total_time_ms": 0.0,
             "stage_times": {},
         }
+    
+    async def ingest_memory(self, memory: Memory, raw_content: str) -> None:
+        """
+        Ingest a single memory with full cognitive processing.
+        
+        Args:
+            memory: Memory object to process
+            raw_content: Raw content for dimension extraction
+        """
+        # 1. Extract Cognitive Dimensions
+        dimension_analyzer = get_dimension_analyzer()
+        # Create context for dimension extraction
+        dim_context = DimensionExtractionContext(
+            timestamp_ms=memory.timestamp_ms,
+            speaker=memory.speaker,
+            speaker_role=memory.speaker_role,
+            content_type=memory.content_type.value,
+            project_id=memory.project_id,
+            # Add other relevant context fields if available
+        )
+        cognitive_dimensions = await dimension_analyzer.analyze(raw_content, dim_context)
+        memory.dimensions_json = json.dumps(cognitive_dimensions.to_dict())  # Store as JSON
+        
+        # 2. Generate Semantic Embedding
+        encoder = get_encoder()
+        semantic_embedding = encoder.encode(raw_content, normalize=True)
+        
+        # 3. Compose Full 400D Vector
+        vector_manager = get_vector_manager()
+        full_vector_obj = vector_manager.compose_vector(semantic_embedding, cognitive_dimensions)
+        
+        # 4. Store in Qdrant
+        vector_store = self.vector_store
+        await vector_store.store_memory(memory, full_vector_obj)  # Pass full_vector_obj
+        
+        # 5. Store in SQLite (MemoryRepository)
+        memory_repo = self.memory_repo
+        await memory_repo.create(memory)  # This should now save dimensions_json
 
     async def ingest_meeting(self, meeting: Meeting, transcript: str) -> IngestionResult:
         """
@@ -273,56 +316,63 @@ class IngestionPipeline:
 
     async def _extract_dimensions(
         self, memories: List[Memory], meeting: Meeting, errors: List[str]
-    ) -> np.ndarray:
+    ) -> List[CognitiveDimensions]:
         """Extract cognitive dimensions for all memories."""
         try:
-            # Prepare contexts
-            contexts = []
-            meeting_duration_ms = (
-                meeting.duration_minutes * 60 * 1000 if meeting.duration_minutes else None
-            )
-
-            for memory in memories:
+            dimension_analyzer = get_dimension_analyzer()
+            all_dimensions = []
+            
+            for i, memory in enumerate(memories):
+                # Create context for each memory
                 context = DimensionExtractionContext(
                     timestamp_ms=memory.timestamp_ms,
-                    meeting_duration_ms=meeting_duration_ms,
                     speaker=memory.speaker,
                     speaker_role=memory.speaker_role,
                     content_type=memory.content_type.value,
-                    participants=[p.get("name") for p in meeting.participants],
                     meeting_type=meeting.meeting_type.value,
                     project_id=meeting.project_id,
+                    current_memory_index=i,
+                    total_memories=len(memories)
                 )
-                contexts.append(context)
-
-            # Extract dimensions
-            contents = [memory.content for memory in memories]
-            dimensions = await self.dimension_analyzer.batch_analyze(contents, contexts)
-
-            logger.debug(f"Extracted dimensions with shape {dimensions.shape}")
-            return dimensions
+                
+                # Extract dimensions
+                cognitive_dimensions = await dimension_analyzer.analyze(memory.content, context)
+                all_dimensions.append(cognitive_dimensions)
+                
+                # Store dimensions JSON in memory
+                memory.dimensions_json = cognitive_dimensions.to_dict()
+            
+            logger.debug(f"Extracted dimensions for {len(all_dimensions)} memories")
+            return all_dimensions
 
         except Exception as e:
             error_msg = f"Dimension extraction failed: {str(e)}"
             errors.append(error_msg)
             logger.error(error_msg)
             # Return default dimensions as fallback
-            return np.full((len(memories), 16), 0.5)
+            default_dims = []
+            for _ in memories:
+                default_dims.append(CognitiveDimensions(
+                    urgency=0.5, deadline_proximity=0.5, sequence_position=0.5, duration_relevance=0.5,
+                    polarity=0.5, intensity=0.5, confidence=0.5,
+                    authority=0.5, influence=0.5, team_dynamics=0.5,
+                    dependencies=0.5, impact=0.5, risk_factors=0.5,
+                    change_rate=0.5, innovation_level=0.5, adaptation_need=0.5
+                ))
+            return default_dims
 
     def _compose_vectors(
-        self, embeddings: np.ndarray, dimensions: np.ndarray, errors: List[str]
+        self, embeddings: np.ndarray, dimensions: List[CognitiveDimensions], errors: List[str]
     ) -> List[Vector]:
         """Compose full 400D vectors."""
         try:
-            vectors = self.vector_manager.batch_compose(embeddings, dimensions)
-
-            # Validate vectors
-            for i, vector in enumerate(vectors):
-                is_valid, error = self.vector_manager.validate_vector(vector)
-                if not is_valid:
-                    errors.append(f"Invalid vector at index {i}: {error}")
-                    # Normalize to fix
-                    vectors[i] = self.vector_manager.normalize_vector(vector)
+            vectors = []
+            vector_manager = get_vector_manager()
+            
+            for i in range(len(embeddings)):
+                # Compose each vector
+                full_vector = vector_manager.compose_vector(embeddings[i], dimensions[i])
+                vectors.append(full_vector)
 
             return vectors
 
@@ -352,10 +402,7 @@ class IngestionPipeline:
                 # Update memories with Qdrant IDs
                 for memory, qdrant_id in zip(batch_memories, qdrant_ids):
                     memory.qdrant_id = qdrant_id
-
-                    # Store dimensions as JSON
-                    idx = memories.index(memory)
-                    memory.dimensions_json = self.vector_manager.to_json(vectors[idx])
+                    # dimensions_json already set in _extract_dimensions
 
                 # Store in SQLite
                 stored = await self.memory_repo.batch_create(batch_memories)
